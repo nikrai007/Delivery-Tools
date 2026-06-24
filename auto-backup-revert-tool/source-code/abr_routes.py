@@ -1,10 +1,9 @@
 """
-AutoBackupRevert tool — Flask blueprint ``abr``.
+AutoBackupRevert — Flask blueprint ``abr``.
 
-All routes for the rollback-script generator: dashboard, job lifecycle
-(new -> review -> result -> download), history, and the admin surfaces
-(users + watched sources). Extracted from the original monolithic app.py
-into a self-contained blueprint as part of the Delivery Toolbox refactor.
+Routes for the rollback-script generator: dashboard, job lifecycle
+(new → review → result → download), history, and admin surfaces
+(users, watched sources, logo management).
 """
 
 from __future__ import annotations

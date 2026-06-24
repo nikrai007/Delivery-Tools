@@ -41,9 +41,13 @@ Delivery-Tools/
 │   ├── dependencies/           # connectors/ (local + git), email_utils.py
 │   ├── configuration/          # Tool config notes
 │   ├── scripts/                # Operational scripts
-│   ├── templates/              # dashboard / upload / review / result / history / admin*
+│   ├── templates/              # dashboard / upload / review / result / history / admin* / admin_logo
 │   ├── samples/                # Sample migration SQL
 │   └── documentation.md        # Full tool overview
+│
+├── team-management/            # Team feature (blueprint: teams)
+│   ├── source-code/            # team_routes.py — team CRUD, join-request workflow, team dashboards
+│   └── templates/              # team_dashboard / team_jobs / team_requests / admin_teams*
 │
 ├── tool-3/                     # Scaffold for the next tool (blueprint: tool3)
 │   ├── source-code/            # tool3_routes.py (placeholder)
@@ -62,6 +66,7 @@ Delivery-Tools/
 │   └── user-guide.md
 │
 ├── static/                     # Shared design-system assets (served at /static)
+│   └── brand/                  # Uploaded platform logo (admin-managed, auto-created)
 └── templates/                  # Shared chrome (base.html, partials)
 ```
 
@@ -94,7 +99,10 @@ Python packages) and registers the blueprints:
 |---|---|---|
 | `landing` | landing-page/ | `/`, `/about` |
 | `auth` | login/ | `/login`, `/register`, `/forgot`, `/reset/<token>` |
-| `abr` | auto-backup-revert-tool/ | `/dashboard`, `/new`, `/review`, `/result`, `/history`, `/admin*` |
+| `abr` | auto-backup-revert-tool/ | `/dashboard`, `/new`, `/review`, `/result`, `/history`, `/download`, `/admin*` |
+| `teams` | team-management/ | `/teams/my`, `/teams/my/jobs`, `/teams/my/requests`, `/teams/admin*` |
+| `edu` | encrypt-decrypt-tool/ | `/tools/edu/` |
+| `qgen` | query-generator-tool/ | `/tools/qgen/` |
 | `tool3` | tool-3/ | `/tools/tool-3/` (scaffold) |
 
 ## Adding a new tool

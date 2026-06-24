@@ -4,21 +4,22 @@
 
 | Author | Owner | Status | Last reviewed |
 |---|---|---|---|
-| Nikhil Kumar (EC2845) | Personal Dev Corporation Ltd | Production (Oracle Cloud, India) | 2026-06-10 |
+| Nikhil Kumar (EC2845) | Personal Dev Corporation Ltd | Production (Oracle Cloud, Singapore) | 2026-06-24 |
 
 ---
 
 ## 1. Executive summary
 
-AutoBackupRevert takes an Oracle migration bundle (`.sql`, `.zip`, or `.7z`) — uploaded manually or pulled automatically from a watched folder / Git repo — and emits a **single tagged bundle ZIP** containing five matched scripts:
+AutoBackupRevert takes an Oracle migration bundle (`.sql`, `.zip`, or `.7z`) — uploaded manually or pulled automatically from a watched folder / Git repo — and emits a **single tagged bundle ZIP** organised in numbered folders:
 
-| Artefact | Role |
-|---|---|
-| **BACKUP.sql** | Snapshots the affected rows into `BKP_<table>_<YYMMDDHH>` tables *before* the migration runs. |
-| **REVERT.sql** | Replays each DELETE block in source order, then INSERTs from the BKP snapshots in reverse order (parent → child) — FK-safe by construction. |
-| **CLEANUP.sql** | Drops the `BKP_*` snapshots once the rollback window has passed. |
-| **ALTERS.sql** | Verbatim `ALTER TABLE` statements from the bundle, grouped by file. |
-| **PROCEDURES.txt** | Index of stored-code definitions (PROCEDURE / FUNCTION / PACKAGE / TRIGGER). |
+| Folder / File | Artefact | Role |
+|---|---|---|
+| `01_Backup/01_Backup.sql` | **Backup** | Snapshots the affected rows into `BKP_<table>_<YYMMDDHH>` tables *before* the migration runs. |
+| `02_Migration/<scripts>` | **Migration source** | The original uploaded migration scripts, preserved for traceability. |
+| `03_Revert/01_Revert.sql` | **Revert** | Replays each DELETE block in source order, then INSERTs from the BKP snapshots in reverse order (parent → child) — FK-safe by construction. |
+| `04_Drop_Backup/01_Cleanup.sql` | **Cleanup** | Drops the `BKP_*` snapshots once the rollback window has passed. |
+| `ALTERS.sql` *(root)* | **Alters** | Verbatim `ALTER TABLE` statements from the bundle, grouped by file. |
+| `PROCEDURES.txt` *(root)* | **Procedures** | Index of stored-code definitions (PROCEDURE / FUNCTION / PACKAGE / TRIGGER). |
 
 Every bundle is tagged with a mandatory **enhancement name** and **production loading date** so it's traceable in the history page and downloadable as one ZIP for hand-off to a DBA.
 
@@ -165,7 +166,7 @@ A single **SQLite** database file at `data/app.db` (relative to the project root
   - Read on every fire by `scheduler._is_paused()` to honour temporary snoozes.
   - Read by the admin source list (`app.admin_sources()`) and rendered as the human cadence label + next-fires preview.
   - Mirrored into the legacy `interval_kind` / `interval_value` columns so any reader written before the v2 upgrade still sees something sensible.
-- **`jobs.enhancement_name` / `prod_date`** are persisted on creation, surfaced everywhere (history filters, result page banner, bundle filename, MANIFEST.json).
+- **`jobs.enhancement_name` / `prod_date`** are persisted on creation, surfaced everywhere (history filters, result page banner, bundle filename).
 - **`processed_files`** is the SHA-256 idempotency layer between the scheduler and the connectors.
 
 ### When you would outgrow SQLite
@@ -198,7 +199,7 @@ Job moves to `reviewed`.
 Tables matching `_LT$` / `_LOG$` / `^SBC_` are **omitted entirely** from BACKUP/REVERT (they're audit / lookup / log tables that shouldn't be rolled back).
 
 ### Stage 4 — Bundle
-Every artefact + the original input + a `MANIFEST.json` are packed into a single **`BUNDLE_<enhancement>_<prod_date>_job<N>.zip`**. Scheduler-driven runs deliver this ZIP to the destination path; manual runs keep it inside the job's work-dir and expose a Download-bundle button.
+Every artefact is packed into a structured **`BUNDLE_<enhancement>_<prod_date>_job<N>.zip`** with numbered folders (`01_Backup/`, `02_Migration/`, `03_Revert/`, `04_Drop_Backup/`); ALTER scripts and procedure definitions sit at the ZIP root. Scheduler-driven runs deliver this ZIP to the destination path; manual runs keep it inside the job's work-dir and expose a Download-bundle button.
 
 ### Stage 5 — Review / Cleanup (DBA workflow, off-platform)
 The DBA runs BACKUP.sql first (snapshots), then runs the migration, then — if rollback is needed — runs REVERT.sql. After the rollback window expires, CLEANUP.sql drops the snapshots.
@@ -207,20 +208,23 @@ The DBA runs BACKUP.sql first (snapshots), then runs the migration, then — if 
 
 ## 6. User roles & permissions
 
-| Capability | Anonymous | User | Admin |
-|---|---|---|---|
-| Register / log in | ✓ | — | — |
-| Upload bundle / generate scripts | — | ✓ | ✓ |
-| Mandatory enhancement-name + prod-date on upload | — | ✓ (enforced) | ✓ (enforced) |
-| See **own** job history (with filters) | — | ✓ | ✓ |
-| Download own generated files + bundle ZIP | — | ✓ | ✓ |
-| See **all users' jobs** (history `&all=1`) | — | — | ✓ |
-| Reset another user's password | — | — | ✓ |
-| Activate / deactivate accounts | — | — | ✓ |
-| **CRUD watched sources** (local + Git) | — | — | ✓ |
-| **Configure scheduler cadence** per source | — | — | ✓ |
-| Manual "Run now" trigger per source | — | — | ✓ |
-| Read all download audit rows | — | — | ✓ |
+| Capability | Anonymous | User | Team Leader | Admin |
+|---|---|---|---|---|
+| Register / log in | ✓ | — | — | — |
+| Upload bundle / generate scripts | — | ✓ | ✓ | ✓ |
+| Mandatory enhancement-name + prod-date on upload | — | ✓ | ✓ | ✓ |
+| See **own** job history (Personal Dashboard) | — | ✓ | ✓ | ✓ |
+| Download own generated files + bundle ZIP | — | ✓ | ✓ | ✓ |
+| View **team dashboard** (team stats + activity) | — | — | ✓ (own team only) | ✓ |
+| View + download **team members' jobs** | — | — | ✓ (own team only) | ✓ |
+| Approve / reject team join requests | — | — | ✓ (own team only) | ✓ |
+| See **all users' jobs** (history `&all=1`) | — | — | — | ✓ |
+| Manage users (create / activate / reset password) | — | — | — | ✓ |
+| **CRUD teams** + assign team leaders | — | — | — | ✓ |
+| **CRUD watched sources** (local + Git) | — | — | — | ✓ |
+| Configure scheduler cadence + Run now | — | — | — | ✓ |
+| Upload / reset platform logo | — | — | — | ✓ |
+| Read all download audit rows | — | — | — | ✓ |
 
 Roles are bootstrapped on first run via the `ADMIN_USERNAME` / `ADMIN_PASSWORD` env vars in `.env`.
 
@@ -302,21 +306,27 @@ The fields are **enforced** at three layers:
 
 ## 9. UI / UX walkthrough
 
-| Page | Purpose |
-|---|---|
-| `/login`, `/register`, `/forgot`, `/reset` | Auth flows |
-| `/` (dashboard) | KPI tiles + last-7-days activity chart + recent jobs |
-| `/new` | Upload form — **enhancement name + prod date are required** before the file-picker |
-| `/review/<job>` | Preview of `delete.sql`, list of files scanned, "Generate" button |
-| `/result/<job>` | Bundle banner (enhancement + prod date + **Download bundle (.zip)**) + 5 artefact cards |
-| `/history` | Filter bar (search · prod-date range · status · admin's "show all"); table with metadata, source (manual / scheduler), bundle download |
-| `/admin` | Admin dashboard — all users' jobs, charts, KPIs |
-| `/admin/users` | User management — create / activate / reset password |
-| `/admin/sources` | **Watched sources list** — name, kind, source/dest, cadence label, last-run status, run-now / edit / delete actions |
-| `/admin/sources/new?kind=local` · `/admin/sources/new?kind=git` | Create form — name, paths, auth (PAT for Git), cadence picker |
-| `/admin/sources/<id>/edit` | Edit form with the same fields + enabled toggle |
-| `/admin/job/<id>` | Per-job inspection: who ran it, which files, all downloads |
-| `/about` | Tool credits + footer ("Personal Dev Corporation Ltd · © 2026") |
+| Page | Who sees it | Purpose |
+|---|---|---|
+| `/login`, `/register`, `/forgot`, `/reset` | All | Auth flows — all registration fields are mandatory |
+| `/` | All | Landing hub — tool cards, theme toggle |
+| `/dashboard` | User / Team Leader / Admin | **Personal Dashboard** — own KPI tiles, 30-day activity chart, recent jobs |
+| `/new` | User / Team Leader / Admin | Upload form — enhancement name + prod date required before file-picker |
+| `/review/<job>` | Owner / Admin | Preview of collected DELETE statements; "Generate" button |
+| `/result/<job>` | Owner / Admin | Bundle banner (enhancement + prod date + **Download bundle (.zip)**) + artefact preview cards |
+| `/history` | User / Admin | Filter bar (search · prod-date range · status); admins add `?all=1` to see all users |
+| `/teams/my` | Team Leader | **Team Dashboard** — team KPIs, 30-day activity chart, recent team jobs, members table |
+| `/teams/my/jobs` | Team Leader | Full filterable listing of every team member's jobs with per-artefact download buttons |
+| `/teams/my/requests` | Team Leader | Approve / reject join requests for own team |
+| `/admin` | Admin | Platform-wide dashboard — all users' jobs, charts, KPIs |
+| `/admin/users` | Admin | User management — create / activate / deactivate / reset password |
+| `/admin/logo` | Admin | Upload, preview, or reset the platform logo (PNG/JPG/SVG/WebP/GIF, max 5 MB) |
+| `/admin/sources` | Admin | Watched sources — name, kind, source/dest, cadence, last-run status, run-now / edit / delete |
+| `/admin/sources/new?kind=local` · `?kind=git` | Admin | Create source form — name, paths, PAT (Git), cadence picker with live "next 5 fires" preview |
+| `/admin/sources/<id>/edit` | Admin | Edit source — same fields + enabled toggle |
+| `/admin/job/<id>` | Admin | Per-job inspection: owner, files, all downloads |
+| `/teams/admin` | Admin | Team CRUD — create / edit / delete teams, assign leaders, manage members |
+| `/about` | All | Platform credits |
 
 Theme toggles between light and dark via a top-right switch; choice persists per browser.
 
@@ -401,7 +411,7 @@ Ranked by **pitch value to leadership** vs **engineering effort**.
 | **Job** | One end-to-end run: ingest → scan → generate → bundle. Persisted in `data/app.db`. |
 | **Watched source** | An admin-registered external location (local folder or Git repo) that the scheduler polls for new migration bundles. |
 | **Connector** | A small Python class that knows how to discover candidate files from a watched source and deliver a generated bundle to its destination. |
-| **Bundle ZIP** | `BUNDLE_<enhancement>_<prod_date>_job<N>.zip` — single download containing BACKUP, REVERT, CLEANUP, ALTERS, PROCEDURES, the original source file, and a MANIFEST.json. |
+| **Bundle ZIP** | `BUNDLE_<enhancement>_<prod_date>_job<N>.zip` — single download with numbered folders: `01_Backup/01_Backup.sql`, `02_Migration/<source scripts>`, `03_Revert/01_Revert.sql`, `04_Drop_Backup/01_Cleanup.sql`; `ALTERS.sql` and `PROCEDURES.txt` at root. |
 | **Idempotency manifest** | The `processed_files` table — keyed on `(watched_source_id, file_hash)` — that prevents the scheduler from reprocessing files it has already seen. |
 
 ---

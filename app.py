@@ -91,14 +91,12 @@ def create_app() -> Flask:
     app.logger.addHandler(fh)
     logging.getLogger().addHandler(fh)  # capture werkzeug + library tracebacks too
 
-    # Runtime dirs + DB bootstrap.
     constants.UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)
     constants.DATA_DIR.mkdir(parents=True, exist_ok=True)
     constants.BRAND_DIR.mkdir(parents=True, exist_ok=True)
     models.init_db(constants.DB_PATH)
     models.ensure_admin(constants.ADMIN_USERNAME, constants.ADMIN_EMAIL, constants.ADMIN_PASSWORD)
 
-    # Auth + blueprints.
     login_manager.init_app(app)
     app.register_blueprint(auth_bp)
     app.register_blueprint(landing_bp)
@@ -126,7 +124,6 @@ def create_app() -> Flask:
                 return redirect(url_for("teams.pending_approval"))
         return None
 
-    # Globals available in every template.
     @app.context_processor
     def inject_globals():
         year = datetime.now().year
@@ -142,7 +139,6 @@ def create_app() -> Flask:
                 pending_team_requests = models.count_pending_join_requests()
             elif getattr(current_user, "is_team_leader", False) and current_user.team_id:
                 pending_team_requests = len(models.list_join_requests_for_team(current_user.team_id))
-        # Centralized logo: use uploaded brand logo if set and file exists, else default.
         custom_logo = models.setting_get("brand.logo_filename") or ""
         if custom_logo and (constants.BRAND_DIR / custom_logo).exists():
             logo_url = url_for("static", filename=f"brand/{custom_logo}")
@@ -167,7 +163,6 @@ def create_app() -> Flask:
         flash(f"Upload exceeded {constants.MAX_UPLOAD_MB} MB limit.", "error")
         return redirect(url_for("abr.new_job")), 413
 
-    # Background workers (upload cleanup + APScheduler).
     start_workers(app)
 
     log.info("Delivery Toolbox ready — %d blueprint(s) registered.", len(app.blueprints))
