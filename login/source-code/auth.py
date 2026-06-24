@@ -95,12 +95,24 @@ def register():
         errors = []
         if not USERNAME_RE.match(username):
             errors.append("Username must be 3–32 chars, letters/digits/._- only.")
+        if not full_name:
+            errors.append("Full name is required.")
+        elif len(full_name) < 2:
+            errors.append("Full name must be at least 2 characters.")
+        if not employee_code:
+            errors.append("Employee code is required.")
+        if not email:
+            errors.append("Email address is required.")
+        elif "@" not in email or "." not in email.split("@")[-1]:
+            errors.append("Please enter a valid email address.")
         if len(password) < 8:
             errors.append("Password must be at least 8 characters.")
         if password != confirm:
             errors.append("Passwords do not match.")
         if models.username_exists(username):
             errors.append("Username is already taken.")
+        if models.get_user_by_email(email) is not None:
+            errors.append("An account with that email address already exists.")
         if team_id and models.get_team(team_id) is None:
             errors.append("Selected team does not exist.")
 

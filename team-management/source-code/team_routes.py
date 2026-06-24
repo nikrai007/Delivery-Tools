@@ -19,6 +19,7 @@ from flask import (
     redirect,
     render_template,
     request,
+    send_file,
     url_for,
 )
 from flask_login import current_user, login_required
@@ -72,9 +73,75 @@ def my_team():
     if team is None:
         flash("You are not assigned to any team.", "warning")
         return redirect(url_for("abr.dashboard"))
-    members = models.get_team_members(current_user.team_id)
-    pending = models.list_join_requests_for_team(current_user.team_id)
-    return render_template("team_dashboard.html", team=team, members=members, pending_count=len(pending))
+    members     = models.get_team_members(current_user.team_id)
+    pending     = models.list_join_requests_for_team(current_user.team_id)
+    stats       = models.stats_for_team(current_user.team_id)
+    recent_jobs = models.list_jobs_for_team(current_user.team_id, limit=10)
+    per_day     = models.jobs_per_day_team(current_user.team_id, days=30)
+    return render_template("team_dashboard.html",
+                           team=team, members=members,
+                           pending_count=len(pending),
+                           stats=stats,
+                           recent_jobs=recent_jobs,
+                           per_day=per_day)
+
+
+@teams_bp.route("/my/jobs")
+@team_leader_required
+def my_team_jobs():
+    """Filterable full job listing for all members of the team leader's team."""
+    if not current_user.team_id:
+        flash("You are not assigned to any team.", "warning")
+        return redirect(url_for("abr.dashboard"))
+    team          = models.get_team(current_user.team_id)
+    q             = (request.args.get("q") or "").strip()
+    prod_from     = (request.args.get("from") or "").strip()
+    prod_to       = (request.args.get("to") or "").strip()
+    status_filter = (request.args.get("status") or "").strip()
+    jobs = models.search_jobs_for_team(
+        current_user.team_id,
+        q=q or None,
+        prod_from=prod_from or None,
+        prod_to=prod_to or None,
+        status=status_filter or None,
+    )
+    return render_template("team_jobs.html", team=team, jobs=jobs,
+                           q=q, prod_from=prod_from, prod_to=prod_to,
+                           status_filter=status_filter)
+
+
+@teams_bp.route("/my/jobs/<int:job_id>/download/<kind>")
+@team_leader_required
+def my_team_download(job_id: int, kind: str):
+    """Download a generated artifact from a team member's job."""
+    job = models.get_job(job_id)
+    if job is None:
+        abort(404)
+    # Scope check: job must belong to an approved member of the leader's team.
+    if not current_user.is_admin:
+        owner = models.get_user(job["user_id"])
+        if (owner is None
+                or owner["team_id"] != current_user.team_id
+                or owner["approval_status"] != "approved"):
+            abort(403)
+    col = {
+        "delete":     "delete_sql_file",
+        "backup":     "backup_sql_file",
+        "revert":     "revert_sql_file",
+        "cleanup":    "cleanup_sql_file",
+        "alters":     "alters_sql_file",
+        "procedures": "procedures_file",
+        "bundle":     "bundle_file",
+    }.get(kind)
+    if col is None:
+        abort(404)
+    path = job[col]
+    if not path or not Path(path).exists():
+        flash("File no longer available (may have been cleaned up).", "error")
+        return redirect(url_for("teams.my_team_jobs"))
+    filename = Path(path).name
+    models.record_download(job_id, current_user.id, filename, _client_ip())
+    return send_file(path, as_attachment=True, download_name=filename)
 
 
 @teams_bp.route("/my/requests")

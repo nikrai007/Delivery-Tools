@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% block title %}Logo Management · {{ platform_name }}{% endblock %}
+{% block page_title %}Logo Management{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl space-y-6">
+
+  {# ── Current logo ─────────────────────────────────────────────────── #}
+  <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm p-6">
+    <h2 class="text-sm font-semibold mb-4">Current logo</h2>
+    <div class="flex items-center gap-6">
+      <div class="flex-shrink-0 h-20 w-20 rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 flex items-center justify-center overflow-hidden shadow-sm">
+        <img id="preview-img" src="{{ preview_url or logo_url }}" alt="Current logo" class="h-16 w-16 object-contain rounded-xl">
+      </div>
+      <div class="space-y-1">
+        {% if current_logo %}
+          <p class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Custom logo active</p>
+          <p class="text-xs text-zinc-500 font-mono">{{ current_logo }}</p>
+          <p class="text-xs text-zinc-400">Displayed on all pages, login, register, and exports.</p>
+        {% else %}
+          <p class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Default logo</p>
+          <p class="text-xs text-zinc-400">Upload a custom logo to replace this across the platform.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {# ── Upload new logo ───────────────────────────────────────────────── #}
+  <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm p-6 space-y-4">
+    <div>
+      <h2 class="text-sm font-semibold">Upload new logo</h2>
+      <p class="text-xs text-zinc-500 mt-0.5">Replaces the current logo immediately across the entire platform.</p>
+    </div>
+
+    <form method="post" action="{{ url_for('abr.admin_logo_upload') }}" enctype="multipart/form-data" class="space-y-4" id="upload-form">
+
+      {# Drop zone #}
+      <label for="logo-input"
+             class="group flex flex-col items-center justify-center gap-3 h-36 border-2 border-dashed border-zinc-300 dark:border-zinc-700 rounded-xl cursor-pointer hover:border-brand-400 dark:hover:border-brand-500 hover:bg-brand-50/30 dark:hover:bg-brand-900/10 transition-colors"
+             id="drop-zone">
+        <span class="material-symbols-outlined text-zinc-400 group-hover:text-brand-500 text-[40px] transition-colors">upload_file</span>
+        <div class="text-center">
+          <p class="text-sm font-medium text-zinc-600 dark:text-zinc-400 group-hover:text-brand-600 dark:group-hover:text-brand-300 transition-colors">
+            Click to select or drag &amp; drop
+          </p>
+          <p class="text-xs text-zinc-400 mt-0.5">PNG, JPG, SVG, WebP, GIF · max 5 MB</p>
+        </div>
+        <input id="logo-input" name="logo" type="file"
+               accept=".png,.jpg,.jpeg,.svg,.webp,.gif"
+               class="sr-only" required>
+      </label>
+
+      {# Preview pane (shown after file selected) #}
+      <div id="file-preview" class="hidden items-center gap-4 p-4 bg-zinc-50 dark:bg-zinc-800/60 rounded-xl border border-zinc-200 dark:border-zinc-700">
+        <div class="h-14 w-14 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 flex items-center justify-center overflow-hidden shrink-0">
+          <img id="file-preview-img" src="" alt="Preview" class="h-12 w-12 object-contain rounded-lg">
+        </div>
+        <div class="flex-1 min-w-0">
+          <p id="file-preview-name" class="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate"></p>
+          <p id="file-preview-size" class="text-xs text-zinc-500 mt-0.5"></p>
+        </div>
+        <button type="button" id="clear-file"
+                class="p-1.5 rounded-md text-zinc-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors"
+                title="Remove selection">
+          <span class="material-symbols-outlined text-[18px]">close</span>
+        </button>
+      </div>
+
+      <button type="submit"
+              class="w-full py-3 rounded-xl bg-gradient-to-b from-brand-500 to-brand-700 text-white font-semibold text-sm shadow-md shadow-brand-500/25 hover:-translate-y-0.5 transition-all active:scale-[0.98]">
+        Upload &amp; apply logo
+      </button>
+    </form>
+  </div>
+
+  {# ── Reset to default ─────────────────────────────────────────────── #}
+  {% if current_logo %}
+  <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm p-6">
+    <h2 class="text-sm font-semibold mb-1">Reset to default</h2>
+    <p class="text-xs text-zinc-500 mb-4">Removes the custom logo and restores the built-in default across the platform.</p>
+    <form method="post" action="{{ url_for('abr.admin_logo_reset') }}"
+          onsubmit="return confirm('Reset to the default logo?')">
+      <button type="submit"
+              class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/30 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-300 text-sm font-medium transition-colors">
+        <span class="material-symbols-outlined text-[18px]">restore</span>
+        Reset to default logo
+      </button>
+    </form>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const input    = document.getElementById('logo-input');
+  const dropZone = document.getElementById('drop-zone');
+  const preview  = document.getElementById('file-preview');
+  const previewImg  = document.getElementById('file-preview-img');
+  const previewName = document.getElementById('file-preview-name');
+  const previewSize = document.getElementById('file-preview-size');
+  const clearBtn    = document.getElementById('clear-file');
+  const liveImg     = document.getElementById('preview-img');
+
+  function formatBytes(n) {
+    if (n < 1024) return n + ' B';
+    if (n < 1048576) return (n / 1024).toFixed(1) + ' KB';
+    return (n / 1048576).toFixed(2) + ' MB';
+  }
+
+  function showPreview(file) {
+    const url = URL.createObjectURL(file);
+    previewImg.src     = url;
+    previewName.textContent = file.name;
+    previewSize.textContent = formatBytes(file.size);
+    preview.classList.remove('hidden');
+    preview.classList.add('flex');
+    if (liveImg) liveImg.src = url;
+  }
+
+  function clearPreview() {
+    preview.classList.add('hidden');
+    preview.classList.remove('flex');
+    input.value = '';
+  }
+
+  input.addEventListener('change', () => {
+    if (input.files[0]) showPreview(input.files[0]);
+    else clearPreview();
+  });
+
+  clearBtn.addEventListener('click', clearPreview);
+
+  // Drag and drop
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('border-brand-500'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('border-brand-500'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('border-brand-500');
+    const file = e.dataTransfer.files[0];
+    if (!file) return;
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    input.files = dt.files;
+    showPreview(file);
+  });
+})();
+</script>
+{% endblock %}

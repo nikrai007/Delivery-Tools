@@ -42,6 +42,7 @@ import models
 import scheduler as scheduler_mod
 from constants import (
     ALLOWED_UPLOAD_EXT,
+    BRAND_DIR,
     CLEANUP_MINUTES,
     DATA_DIR,
     JOB_RETENTION_DAYS,
@@ -145,74 +146,69 @@ def _bundle_basename(enhancement: str, prod_date: str, job_id: int) -> str:
 def _build_bundle(*, job_id: int, work_dir: Path,
                   enhancement_name: str, prod_date: str,
                   source_input_path: Path | None,
-                  delete_path: Path, backup_path: Path, revert_path: Path,
-                  cleanup_path: Path | None, alters_path: Path, procs_path: Path,
-                  manifest_extra: dict) -> Path:
+                  backup_path: Path, revert_path: Path,
+                  cleanup_path: Path | None, alters_path: Path, procs_path: Path) -> Path:
     """
-    Pack every artefact + the original input + a MANIFEST.json into a single
-    BUNDLE_*.zip. Returns the path of the generated ZIP.
+    Pack every artefact into a structured BUNDLE_*.zip. Returns the ZIP path.
+
+    Layout:
+        01_Backup/      — backup script
+        02_Migration/   — original migration scripts (extracted dir or source file)
+        03_Revert/      — revert script
+        04_Drop_Backup/ — cleanup/drop-backup script (when present)
+        <root>          — delete SQL, ALTER scripts, procedure definitions
     """
     bundle_path = work_dir / _bundle_basename(enhancement_name, prod_date, job_id)
 
-    manifest = {
-        "job_id": job_id,
-        "enhancement_name": enhancement_name,
-        "prod_date": prod_date,
-        "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "artefacts": [],
-        **manifest_extra,
-    }
-
-    # Files to include: (member-name-in-zip, on-disk path, optional=True/False)
-    members: list[tuple[str, Path, bool]] = [
-        ("delete.sql",      delete_path,  False),
-        ("BACKUP.sql",      backup_path,  False),
-        ("REVERT.sql",      revert_path,  False),
-        ("ALTERS.sql",      alters_path,  False),
-        ("PROCEDURES.txt",  procs_path,   False),
-    ]
-    if cleanup_path is not None:
-        members.append(("CLEANUP.sql", cleanup_path, False))
-    if source_input_path is not None and source_input_path.exists() and source_input_path.is_file():
-        members.append((f"source/{source_input_path.name}", source_input_path, True))
-
     with zipfile.ZipFile(bundle_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-        for arcname, path, _optional in members:
-            if not path.exists():
-                continue
-            zf.write(path, arcname=arcname)
-            manifest["artefacts"].append({
-                "name": arcname,
-                "size_bytes": path.stat().st_size,
-            })
-        zf.writestr("MANIFEST.json", json.dumps(manifest, indent=2))
+
+        # 01_Backup
+        if backup_path.exists():
+            zf.write(backup_path, arcname="01_Backup/01_Backup.sql")
+
+        # 02_Migration — prefer the extracted directory (archives); fall back to the raw source file
+        extracted_dir = work_dir / "extracted"
+        if extracted_dir.is_dir():
+            for p in sorted(extracted_dir.rglob("*")):
+                if p.is_file():
+                    rel = p.relative_to(extracted_dir)
+                    zf.write(p, arcname=f"02_Migration/{rel.as_posix()}")
+        elif source_input_path is not None and source_input_path.exists() and source_input_path.is_file():
+            zf.write(source_input_path, arcname=f"02_Migration/{source_input_path.name}")
+
+        # 03_Revert
+        if revert_path.exists():
+            zf.write(revert_path, arcname="03_Revert/01_Revert.sql")
+
+        # 04_Drop_Backup
+        if cleanup_path is not None and cleanup_path.exists():
+            zf.write(cleanup_path, arcname="04_Drop_Backup/01_Cleanup.sql")
+
+        # Root level — ALTER scripts, procedure definitions
+        if alters_path.exists():
+            zf.write(alters_path, arcname="ALTERS.sql")
+        if procs_path.exists():
+            zf.write(procs_path, arcname="PROCEDURES.txt")
 
     return bundle_path
 
 @abr.route("/dashboard")
 @login_required
 def dashboard():
-    team_name = None
     if current_user.is_admin:
-        stats  = models.stats_overall()
+        stats   = models.stats_overall()
         per_day = models.jobs_per_day(days=30)
         tables  = models.top_tables(limit=10)
         recent  = models.list_all_jobs(limit=10)
-    elif getattr(current_user, "is_team_leader", False) and current_user.team_id:
-        team = models.get_team(current_user.team_id)
-        team_name = team["name"] if team else None
-        stats   = models.stats_for_team(current_user.team_id)
-        per_day = models.jobs_per_day_team(current_user.team_id, days=30)
-        tables  = models.top_tables(limit=10)
-        recent  = models.list_jobs_for_team(current_user.team_id, limit=10)
     else:
+        # Both regular users and team leaders see their OWN work here.
+        # Team leaders access team-wide data through the Team Dashboard.
         stats   = models.stats_for_user(current_user.id)
         per_day = models.jobs_per_day(days=30, user_id=current_user.id)
         tables  = models.top_tables(limit=10, user_id=current_user.id)
         recent  = models.list_jobs_for_user(current_user.id, limit=10)
     return render_template("dashboard.html",
-                           stats=stats, per_day=per_day, top_tables=tables, recent_jobs=recent,
-                           team_name=team_name)
+                           stats=stats, per_day=per_day, top_tables=tables, recent_jobs=recent)
 
 
 _PROD_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -395,19 +391,9 @@ def review(job_id):
             enhancement_name=job["enhancement_name"] or "job",
             prod_date=job["prod_date"] or datetime.now().strftime("%Y-%m-%d"),
             source_input_path=source_input_path,
-            delete_path=Path(job["delete_sql_file"]),
             backup_path=backup_path, revert_path=revert_path,
             cleanup_path=cleanup_path,
             alters_path=alters_path, procs_path=procs_path,
-            manifest_extra={
-                "trigger_count": len(triggers),
-                "unique_tables": gen.unique_tables,
-                "revert_statements": gen.revert_statements,
-                "alters_count": alters.total_alters,
-                "procedures_count": procs.total,
-                "procedures_unique_count": procs.unique_names,
-                "warnings": (gen.warnings + alters.warnings + procs.warnings)[:50],
-            },
         )
 
         models.update_job_generation(
@@ -841,6 +827,66 @@ def admin_storage():
         "reset_token_ttl":     reset_ttl,
     }
     return render_template("admin_storage.html", **ctx)
+
+
+# ----------------------------------------------------------------------
+# Admin — logo management
+# ----------------------------------------------------------------------
+_ALLOWED_LOGO_EXT = {".png", ".jpg", ".jpeg", ".svg", ".webp", ".gif"}
+_MAX_LOGO_BYTES   = 5 * 1024 * 1024   # 5 MB
+
+
+@abr.route("/admin/logo", methods=["GET"])
+@admin_required
+def admin_logo():
+    current_logo = models.setting_get("brand.logo_filename") or ""
+    preview_url  = None
+    if current_logo and (BRAND_DIR / current_logo).exists():
+        preview_url = url_for("static", filename=f"brand/{current_logo}")
+    return render_template("admin_logo.html",
+                           current_logo=current_logo,
+                           preview_url=preview_url)
+
+
+@abr.route("/admin/logo/upload", methods=["POST"])
+@admin_required
+def admin_logo_upload():
+    f = request.files.get("logo")
+    if not f or not f.filename:
+        flash("No file selected.", "error")
+        return redirect(url_for("abr.admin_logo"))
+    ext = Path(secure_filename(f.filename)).suffix.lower()
+    if ext not in _ALLOWED_LOGO_EXT:
+        flash(
+            f"Unsupported format '{ext}'. Allowed: "
+            + ", ".join(sorted(_ALLOWED_LOGO_EXT)),
+            "error",
+        )
+        return redirect(url_for("abr.admin_logo"))
+    data = f.read()
+    if len(data) > _MAX_LOGO_BYTES:
+        flash("Logo file exceeds the 5 MB size limit.", "error")
+        return redirect(url_for("abr.admin_logo"))
+    BRAND_DIR.mkdir(parents=True, exist_ok=True)
+    filename = f"logo{ext}"
+    (BRAND_DIR / filename).write_bytes(data)
+    models.setting_set("brand.logo_filename", filename)
+    flash("Logo updated successfully. Changes are live across the platform.", "success")
+    return redirect(url_for("abr.admin_logo"))
+
+
+@abr.route("/admin/logo/reset", methods=["POST"])
+@admin_required
+def admin_logo_reset():
+    current = models.setting_get("brand.logo_filename") or ""
+    if current:
+        try:
+            (BRAND_DIR / current).unlink(missing_ok=True)
+        except OSError:
+            pass
+        models.setting_set("brand.logo_filename", "")
+    flash("Logo reset to the built-in default.", "success")
+    return redirect(url_for("abr.admin_logo"))
 
 
 # ----------------------------------------------------------------------

@@ -547,23 +547,9 @@ def _process_one(source_row, cfg: dict, file_path: Path, file_hash: str) -> None
             job_id=job_id, work_dir=work_dir,
             enhancement_name=enhancement, prod_date=prod_date,
             source_input_path=local_copy,
-            delete_path=delete_path, backup_path=backup_path, revert_path=revert_path,
+            backup_path=backup_path, revert_path=revert_path,
             cleanup_path=cleanup_path,
             alters_path=alters_path, procs_path=procs_path,
-            manifest_extra={
-                "trigger_count": len(triggers),
-                "unique_tables": gen.unique_tables,
-                "revert_statements": gen.revert_statements,
-                "alters_count": alters.total_alters,
-                "procedures_count": procs.total,
-                "warnings": (gen.warnings + alters.warnings + procs.warnings)[:50],
-                "scheduler": {
-                    "watched_source_id": source_row["id"],
-                    "watched_source_name": source_row["name"],
-                    "kind": source_row["kind"],
-                    "original_path": str(file_path),
-                },
-            },
         )
         models.update_job_generation(
             job_id=job_id, unique_tables=gen.unique_tables,

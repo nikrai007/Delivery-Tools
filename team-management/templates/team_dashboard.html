@@ -1,6 +1,6 @@
 {% extends "base.html" %}
-{% block title %}{{ team.name }} · {{ platform_name }}{% endblock %}
-{% block page_title %}{{ team.name }}{% endblock %}
+{% block title %}{{ team.name }} · Team Dashboard · {{ platform_name }}{% endblock %}
+{% block page_title %}{{ team.name }} — Team Dashboard{% endblock %}
 
 {% block content %}
 <div class="space-y-6">
@@ -17,7 +17,7 @@
         <p class="text-xs text-zinc-400 mt-1">{{ members|length }} approved member{{ '' if members|length == 1 else 's' }}</p>
       </div>
     </div>
-    <div class="flex items-center gap-3">
+    <div class="flex items-center gap-3 flex-wrap">
       {% if pending_count > 0 %}
         <a href="{{ url_for('teams.my_team_requests') }}"
            class="inline-flex items-center gap-1.5 h-9 px-4 bg-amber-100 hover:bg-amber-200 text-amber-800 dark:bg-amber-900/40 dark:hover:bg-amber-900/60 dark:text-amber-300 text-sm font-medium rounded-lg transition-colors">
@@ -25,6 +25,11 @@
           {{ pending_count }} pending request{{ '' if pending_count == 1 else 's' }}
         </a>
       {% endif %}
+      <a href="{{ url_for('teams.my_team_jobs') }}"
+         class="inline-flex items-center gap-1.5 h-9 px-4 bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium rounded-lg transition-colors">
+        <span class="material-symbols-outlined text-[18px]">folder_open</span>
+        All team jobs
+      </a>
       <a href="{{ url_for('teams.my_team_requests') }}"
          class="inline-flex items-center gap-1.5 h-9 px-4 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-sm font-medium rounded-lg transition-colors">
         <span class="material-symbols-outlined text-[18px]">how_to_reg</span>
@@ -33,11 +38,102 @@
     </div>
   </div>
 
+  {# ── Stat cards ───────────────────────────────────────────────────── #}
+  <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    {% set cards = [
+      ('Members',    stats.members,   'bg-sky-500',     'Total approved team members'),
+      ('Jobs',       stats.jobs,      'bg-brand-500',   'Total backup scans by the team'),
+      ('DELETEs',    stats.deletes,   'bg-emerald-500', 'Total rows protected via backups'),
+      ('Downloads',  stats.downloads, 'bg-amber-500',   'Total artifact downloads'),
+    ] %}
+    {% for label, value, dot, caption in cards %}
+      <div class="bg-white dark:bg-zinc-900 p-4 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm hover:shadow-md transition-shadow">
+        <div class="flex items-start justify-between">
+          <div class="space-y-1">
+            <p class="text-xs font-medium text-zinc-500 uppercase tracking-wider">{{ label }}</p>
+            <p class="text-2xl font-bold tabular-nums">{{ "{:,}".format(value) }}</p>
+          </div>
+          <div class="h-2 w-2 rounded-full {{ dot }}"></div>
+        </div>
+        <div class="mt-3 text-[11px] text-zinc-500">{{ caption }}</div>
+      </div>
+    {% endfor %}
+  </div>
+
+  {# ── Activity chart ───────────────────────────────────────────────── #}
+  <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-5 shadow-sm">
+    <div class="flex items-center justify-between mb-5">
+      <div>
+        <h3 class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Team activity — last 30 days</h3>
+        <p class="text-xs text-zinc-500">Jobs submitted by all team members</p>
+      </div>
+      <span class="text-[10px] uppercase tracking-wider text-zinc-400">Last 30 days</span>
+    </div>
+    <div class="relative h-48">
+      <canvas id="teamActivityChart"></canvas>
+    </div>
+  </div>
+
+  {# ── Recent jobs ──────────────────────────────────────────────────── #}
+  <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm overflow-hidden">
+    <div class="p-5 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
+      <div>
+        <h3 class="text-sm font-semibold">Recent team jobs</h3>
+        <p class="text-xs text-zinc-500 mt-0.5">Latest 10 jobs across all team members</p>
+      </div>
+      <a href="{{ url_for('teams.my_team_jobs') }}"
+         class="text-xs text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200 font-medium transition-colors">
+        View all →
+      </a>
+    </div>
+    {% if recent_jobs %}
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-sm">
+          <thead class="bg-zinc-50 dark:bg-zinc-800/50 text-zinc-500 border-b border-zinc-200 dark:border-zinc-800">
+            <tr>
+              <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">When</th>
+              <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">Member</th>
+              <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">Input</th>
+              <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px] text-right">DELETEs</th>
+              <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">Status</th>
+              <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px] text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-zinc-100 dark:divide-zinc-800">
+            {% for j in recent_jobs %}
+              <tr class="hover:bg-zinc-50/60 dark:hover:bg-zinc-800/40 transition-colors">
+                <td class="px-5 py-3 whitespace-nowrap text-zinc-500 tabular-nums text-xs">{{ j.created_at[:19].replace('T',' ') }}</td>
+                <td class="px-5 py-3 whitespace-nowrap font-medium">{{ j.username if 'username' in j.keys() else '—' }}</td>
+                <td class="px-5 py-3 whitespace-nowrap">
+                  <code class="font-mono text-xs bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded text-brand-600 dark:text-brand-300">{{ j.input_name }}</code>
+                </td>
+                <td class="px-5 py-3 whitespace-nowrap text-right tabular-nums">{{ j.delete_count }}</td>
+                <td class="px-5 py-3 whitespace-nowrap">{% include "_status_badge.html" %}</td>
+                <td class="px-5 py-3 whitespace-nowrap text-right">
+                  {% if j.status == 'generated' %}
+                    <a href="{{ url_for('teams.my_team_download', job_id=j.id, kind='bundle') }}"
+                       class="inline-flex items-center gap-1 text-brand-600 hover:text-brand-700 dark:text-brand-300 font-semibold text-xs transition-colors">
+                      <span class="material-symbols-outlined text-[14px]">download</span>Bundle
+                    </a>
+                  {% else %}
+                    <span class="text-zinc-400 text-xs">—</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="p-10 text-center text-sm text-zinc-500">No jobs submitted by the team yet.</div>
+    {% endif %}
+  </div>
+
   {# ── Members table ────────────────────────────────────────────────── #}
   <section class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm overflow-hidden">
     <div class="p-5 border-b border-zinc-200 dark:border-zinc-800">
       <h3 class="text-sm font-semibold">Team members</h3>
-      <p class="text-xs text-zinc-500 mt-0.5">{{ members|length }} member{{ '' if members|length == 1 else 's' }}</p>
+      <p class="text-xs text-zinc-500 mt-0.5">{{ members|length }} approved member{{ '' if members|length == 1 else 's' }}</p>
     </div>
     <div class="overflow-x-auto">
       <table class="w-full text-left text-sm">
@@ -81,5 +177,44 @@
       </table>
     </div>
   </section>
+
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+  const perDay = {{ per_day | tojson }};
+  const labels = perDay.map(d => d.date);
+  const data   = perDay.map(d => d.count);
+  const isDark = document.documentElement.classList.contains('dark');
+  const gridColor  = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
+  const labelColor = isDark ? '#a1a1aa' : '#71717a';
+
+  const ctx = document.getElementById('teamActivityChart');
+  if (!ctx) return;
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        data,
+        backgroundColor: 'rgba(99,102,241,0.55)',
+        borderColor:     'rgba(99,102,241,0.85)',
+        borderWidth: 1,
+        borderRadius: 3,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { title: t => t[0].label } } },
+      scales: {
+        x: { grid: { color: gridColor }, ticks: { color: labelColor, maxRotation: 0, autoSkip: true, maxTicksLimit: 10 } },
+        y: { grid: { color: gridColor }, ticks: { color: labelColor, precision: 0 }, beginAtZero: true }
+      }
+    }
+  });
+})();
+</script>
 {% endblock %}

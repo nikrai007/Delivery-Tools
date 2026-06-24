@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     cleanup_sql_file    TEXT,
     alters_sql_file     TEXT,
     procedures_file     TEXT,
-    bundle_file         TEXT,            -- ZIP of all artefacts + source + MANIFEST.json
+    bundle_file         TEXT,            -- ZIP of all artefacts in numbered folder structure
     source              TEXT NOT NULL DEFAULT 'manual',  -- 'manual' | 'scheduler'
     watched_source_id   INTEGER,         -- non-null for scheduler-driven jobs
     api_token_id        INTEGER,         -- dead column (REST API removed)
@@ -1071,6 +1071,38 @@ def stats_for_team(team_id: int) -> dict:
             f"SELECT COUNT(*) c FROM downloads WHERE user_id IN ({ph})", member_ids
         ).fetchone()["c"]
     return {"jobs": jobs, "deletes": deletes, "downloads": downloads, "members": len(member_ids)}
+
+
+def search_jobs_for_team(team_id: int, *, q: str | None = None,
+                         prod_from: str | None = None, prod_to: str | None = None,
+                         status: str | None = None, limit: int = 200) -> list[sqlite3.Row]:
+    """Return jobs for all approved team members, with optional filters."""
+    where = ["u.team_id = ?", "u.approval_status = 'approved'"]
+    args: list = [team_id]
+    if q:
+        where.append("(j.enhancement_name LIKE ? OR j.input_name LIKE ? OR u.username LIKE ?)")
+        args.extend([f"%{q}%", f"%{q}%", f"%{q}%"])
+    if prod_from:
+        where.append("j.prod_date >= ?")
+        args.append(prod_from)
+    if prod_to:
+        where.append("j.prod_date <= ?")
+        args.append(prod_to)
+    if status:
+        where.append("j.status = ?")
+        args.append(status)
+    clause = "WHERE " + " AND ".join(where)
+    args.append(limit)
+    sql = f"""
+        SELECT j.*, u.username
+        FROM jobs j
+        JOIN users u ON u.id = j.user_id
+        {clause}
+        ORDER BY j.created_at DESC
+        LIMIT ?
+    """
+    with connect() as con:
+        return con.execute(sql, tuple(args)).fetchall()
 
 
 def list_jobs_for_team(team_id: int, limit: int = 10) -> list[sqlite3.Row]:

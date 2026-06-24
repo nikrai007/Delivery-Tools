@@ -71,7 +71,7 @@
       <a href="{{ url_for('landing.index') }}" title="Back to all tools"
          class="block px-6 py-5 hover:bg-zinc-50 dark:hover:bg-zinc-800/40 transition-colors">
         <div class="flex items-center gap-3">
-          <img src="{{ url_for('static', filename='logo.svg') }}" alt="" class="h-10 w-10 rounded-xl shadow-md shadow-brand-200/60 dark:shadow-brand-900/40">
+          <img src="{{ logo_url }}" alt="" class="h-10 w-10 rounded-xl shadow-md shadow-brand-200/60 dark:shadow-brand-900/40">
           <div class="leading-tight">
             <h2 class="text-base font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">{{ platform_name }}</h2>
             <p class="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold">{{ app_name }}</p>
@@ -117,9 +117,14 @@
           {% if is_team_leader and not is_admin %}
             <div class="pt-5 pb-1 px-3 text-[10px] uppercase tracking-wider text-zinc-500 font-semibold">My Team</div>
             <a href="{{ url_for('teams.my_team') }}"
-               class="{{ item }} {% if request.endpoint == 'teams.my_team' %}{{ active }}{% else %}{{ idle }}{% endif %}">
+               class="{{ item }} {% if request.endpoint in ('teams.my_team',) %}{{ active }}{% else %}{{ idle }}{% endif %}">
               <span class="material-symbols-outlined text-[20px]">group</span>
               Team dashboard
+            </a>
+            <a href="{{ url_for('teams.my_team_jobs') }}"
+               class="{{ item }} {% if request.endpoint in ('teams.my_team_jobs','teams.my_team_download') %}{{ active }}{% else %}{{ idle }}{% endif %}">
+              <span class="material-symbols-outlined text-[20px]">folder_open</span>
+              Team jobs
             </a>
             <a href="{{ url_for('teams.my_team_requests') }}"
                class="{{ item }} {% if request.endpoint == 'teams.my_team_requests' %}{{ active }}{% else %}{{ idle }}{% endif %}">
@@ -160,6 +165,11 @@
                class="{{ item }} {% if request.endpoint == 'abr.admin_storage' %}{{ active }}{% else %}{{ idle }}{% endif %}">
               <span class="material-symbols-outlined text-[20px]">folder_managed</span>
               Storage settings
+            </a>
+            <a href="{{ url_for('abr.admin_logo') }}"
+               class="{{ item }} {% if request.endpoint == 'abr.admin_logo' %}{{ active }}{% else %}{{ idle }}{% endif %}">
+              <span class="material-symbols-outlined text-[20px]">image</span>
+              Logo
             </a>
           {% endif %}
         {% endif %}

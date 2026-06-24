@@ -43,3 +43,6 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin")
 
 # --- AutoBackupRevert tool ---------------------------------------------
 ALLOWED_UPLOAD_EXT = {".7z", ".zip", ".sql"}
+
+# --- Brand assets -------------------------------------------------------
+BRAND_DIR = ROOT / "static" / "brand"

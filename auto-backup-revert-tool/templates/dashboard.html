@@ -4,12 +4,12 @@
 
 {% block content %}
 
-{# ─── Team context banner (team leaders only) ─────────────────────────────── #}
-{% if team_name %}
+{# ─── Team leader shortcut banner ─────────────────────────────────────────── #}
+{% if is_team_leader and not is_admin %}
 <div class="flex items-center gap-3 px-5 py-3 bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800/50 rounded-xl text-sm">
-  <span class="material-symbols-outlined text-brand-500 text-[20px]">group</span>
-  <span class="text-brand-800 dark:text-brand-200 font-medium">Showing team activity for: <strong>{{ team_name }}</strong></span>
-  <a href="{{ url_for('teams.my_team') }}" class="ml-auto text-xs text-brand-600 dark:text-brand-300 hover:underline font-medium">Team dashboard →</a>
+  <span class="material-symbols-outlined text-brand-500 text-[20px]">info</span>
+  <span class="text-brand-800 dark:text-brand-200">This is your <strong>Personal Dashboard</strong> — your own jobs and stats.</span>
+  <a href="{{ url_for('teams.my_team') }}" class="ml-auto text-xs text-brand-600 dark:text-brand-300 hover:underline font-medium whitespace-nowrap">Team Dashboard →</a>
 </div>
 {% endif %}
 
@@ -22,8 +22,6 @@
   ] %}
   {% if is_admin %}
     {% set _ = cards.append(('Users', stats.users, 'bg-sky-500', 'sky-50', 'Registered accounts')) %}
-  {% elif team_name %}
-    {% set _ = cards.append(('Members', stats.members, 'bg-sky-500', 'sky-50', 'Approved team members')) %}
   {% endif %}
   {% for label, value, dot, ring, caption in cards %}
     <div class="bg-white dark:bg-zinc-900 p-4 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm hover:shadow-md transition-shadow group">
@@ -71,7 +69,7 @@
   <div class="p-5 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
     <div>
       <h3 class="text-base font-semibold">Recent jobs</h3>
-      <p class="text-sm text-zinc-500">{% if team_name %}Team scans and generated scripts{% else %}Your latest scans and generated scripts{% endif %}</p>
+      <p class="text-sm text-zinc-500">Your latest scans and generated scripts</p>
     </div>
     <a href="{{ url_for('abr.new_job') }}"
        class="bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors">
@@ -85,7 +83,7 @@
         <thead class="bg-zinc-50 dark:bg-zinc-800/50 text-zinc-500 border-b border-zinc-200 dark:border-zinc-800">
           <tr>
             <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">When</th>
-            {% if is_admin or team_name %}<th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">User</th>{% endif %}
+            {% if is_admin %}<th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">User</th>{% endif %}
             <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">Input</th>
             <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px] text-right">Files</th>
             <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px] text-right">DELETEs</th>
@@ -98,7 +96,7 @@
           {% for j in recent_jobs %}
             <tr class="hover:bg-zinc-50/60 dark:hover:bg-zinc-800/40 transition-colors">
               <td class="px-5 py-3 whitespace-nowrap text-zinc-500 tabular-nums">{{ j.created_at[:19].replace('T',' ') }}</td>
-              {% if is_admin or team_name %}<td class="px-5 py-3 whitespace-nowrap font-medium">{{ j.username if 'username' in j.keys() else '' }}</td>{% endif %}
+              {% if is_admin %}<td class="px-5 py-3 whitespace-nowrap font-medium">{{ j.username if 'username' in j.keys() else '' }}</td>{% endif %}
               <td class="px-5 py-3 whitespace-nowrap">
                 <code class="font-mono text-xs bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded text-brand-600 dark:text-brand-300">{{ j.input_name }}</code>
               </td>
