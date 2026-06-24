@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+{% block title %}New job · {{ platform_name }}{% endblock %}
+{% block page_title %}New job{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+  <form method="post" enctype="multipart/form-data" class="lg:col-span-2 space-y-6">
+
+    <section class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm p-5">
+      <div class="flex items-start justify-between gap-3 mb-4">
+        <div>
+          <h2 class="text-sm font-semibold">Job metadata <span class="ml-1 text-[10px] uppercase tracking-wider text-rose-500">required</span></h2>
+          <p class="text-xs text-zinc-500 mt-1">
+            Tags the generated bundle for traceability. Both fields are mandatory and indexed for search on the history page.
+          </p>
+        </div>
+        <span class="material-symbols-outlined text-brand-500 text-[28px]">label</span>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <label class="block">
+          <span class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Enhancement name</span>
+          <input name="enhancement_name" type="text" required
+                 maxlength="80" minlength="2"
+                 pattern="[A-Za-z0-9._\- ]{2,80}"
+                 placeholder="e.g. SBC-Upgrade-Gold-8-26759"
+                 class="mt-1 w-full h-10 px-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg
+                        text-sm placeholder:text-zinc-400
+                        focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all">
+          <span class="block mt-1 text-[11px] text-zinc-500">2–80 chars · letters, digits, dots, dashes, underscores, spaces.</span>
+        </label>
+        <label class="block">
+          <span class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Production loading date</span>
+          <input name="prod_date" type="date" required
+                 value="{{ today }}"
+                 class="mt-1 w-full h-10 px-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg
+                        text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all">
+          <span class="block mt-1 text-[11px] text-zinc-500">When this rollback might be needed in production.</span>
+        </label>
+      </div>
+    </section>
+
+    <section class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm p-5">
+      <div class="flex items-start justify-between gap-3 mb-4">
+        <div>
+          <h2 class="text-sm font-semibold">Upload an archive or SQL file</h2>
+          <p class="text-xs text-zinc-500 mt-1">
+            Accepts
+            <code class="font-mono text-[11px] bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">.7z</code>,
+            <code class="font-mono text-[11px] bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">.zip</code>,
+            or a single
+            <code class="font-mono text-[11px] bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">.sql</code> file.
+            Max size <strong>{{ max_mb }} MB</strong>.
+          </p>
+        </div>
+        <span class="material-symbols-outlined text-brand-500 text-[28px]">upload_file</span>
+      </div>
+
+      <label id="drop"
+             class="flex flex-col items-center justify-center gap-2 h-44 rounded-xl
+                    border-2 border-dashed border-zinc-300 dark:border-zinc-700
+                    cursor-pointer hover:border-brand-500 hover:bg-brand-50/40 dark:hover:bg-brand-900/10
+                    transition-colors">
+        <span class="material-symbols-outlined text-[40px] text-zinc-400">cloud_upload</span>
+        <div class="text-sm">
+          <span class="font-semibold text-brand-600 hover:text-brand-700">Click to browse</span>
+          <span class="text-zinc-600 dark:text-zinc-400">or drop a file here</span>
+        </div>
+        <div id="dropLabel" class="text-xs text-zinc-500">No file selected</div>
+        <input id="fileInput" type="file" name="archive" accept=".7z,.zip,.sql" class="hidden">
+      </label>
+    </section>
+
+    <div class="flex items-center gap-3 text-[10px] uppercase tracking-wider text-zinc-400 font-semibold">
+      <span class="flex-1 border-t border-zinc-200 dark:border-zinc-800"></span>
+      <span>or</span>
+      <span class="flex-1 border-t border-zinc-200 dark:border-zinc-800"></span>
+    </div>
+
+    <section class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm p-5">
+      <div class="flex items-start justify-between gap-3 mb-4">
+        <div>
+          <h2 class="text-sm font-semibold">Use a path on the server</h2>
+          <p class="text-xs text-zinc-500 mt-1">
+            If the files already live on the server, enter the folder or file path. Example:
+            <code class="font-mono text-[11px] bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">C:\migrations\SBC_Gold8</code>
+          </p>
+        </div>
+        <span class="material-symbols-outlined text-brand-500 text-[28px]">folder_open</span>
+      </div>
+
+      <input name="server_path" type="text"
+             placeholder="C:\path\to\folder-or-file"
+             class="w-full h-10 px-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg
+                    font-mono text-sm placeholder:text-zinc-400
+                    focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all">
+    </section>
+
+    <div class="flex justify-end gap-2">
+      <a href="{{ url_for('abr.dashboard') }}"
+         class="h-10 px-4 inline-flex items-center rounded-lg border border-zinc-300 dark:border-zinc-700
+                text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+        Cancel
+      </a>
+      <button type="submit"
+              class="h-10 px-4 inline-flex items-center gap-2 rounded-lg bg-brand-600 hover:bg-brand-700 text-white font-medium
+                     shadow-sm shadow-brand-200/60 dark:shadow-brand-900/40 transition-colors">
+        Scan for DELETEs
+        <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+      </button>
+    </div>
+  </form>
+
+  <aside class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm p-5">
+    <h3 class="text-sm font-semibold mb-4">What happens next</h3>
+    <ol class="space-y-3 text-sm">
+      {% set steps = [
+        ('We extract the archive (7z / zip) or scan the folder you pointed at.'),
+        ('Files are traversed in natural order ('),
+        ('All '),
+        ('You get a review page to preview and download '),
+        ('Click Generate to produce the timestamped ')
+      ] %}
+      {% set step_details = [
+        (1, 'We extract the archive (7z / zip) or scan the folder you pointed at.', None),
+        (2, 'Files are traversed in natural order (', '1_ before 10_).' ),
+        (3, 'All ', 'DELETE FROM …' ),
+        (4, 'You get a review page to preview and download ', 'delete.sql.'),
+        (5, 'Click Generate to produce the timestamped ', 'BACKUP.sql / REVERT.sql.')
+      ] %}
+      {% for n, a, code in step_details %}
+        <li class="flex items-start gap-3">
+          <span class="shrink-0 h-6 w-6 rounded-full bg-brand-50 dark:bg-brand-900/40 text-brand-600 dark:text-brand-300 text-xs font-semibold flex items-center justify-center">{{ n }}</span>
+          <span class="text-zinc-600 dark:text-zinc-400 leading-relaxed">
+            {{ a }}{% if code %}<code class="font-mono text-[11px] bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">{{ code }}</code>{% endif %}
+          </span>
+        </li>
+      {% endfor %}
+    </ol>
+  </aside>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const input = document.getElementById('fileInput');
+  const drop = document.getElementById('drop');
+  const label = document.getElementById('dropLabel');
+  input.addEventListener('change', () => {
+    if (input.files && input.files[0]) {
+      label.textContent = input.files[0].name + ' (' + (input.files[0].size/1024/1024).toFixed(2) + ' MB)';
+      label.classList.remove('text-zinc-500');
+      label.classList.add('text-brand-600', 'font-medium');
+    } else {
+      label.textContent = 'No file selected';
+    }
+  });
+  ['dragover', 'dragenter'].forEach(e => drop.addEventListener(e, (ev) => {
+    ev.preventDefault();
+    drop.classList.add('border-brand-500','bg-brand-50/40','dark:bg-brand-900/10');
+  }));
+  ['dragleave', 'drop'].forEach(e => drop.addEventListener(e, (ev) => {
+    ev.preventDefault();
+    drop.classList.remove('border-brand-500','bg-brand-50/40','dark:bg-brand-900/10');
+  }));
+  drop.addEventListener('drop', (ev) => {
+    if (ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files[0]) {
+      input.files = ev.dataTransfer.files;
+      input.dispatchEvent(new Event('change'));
+    }
+  });
+</script>
+{% endblock %}

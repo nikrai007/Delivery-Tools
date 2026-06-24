@@ -1,0 +1,8 @@
+Flask==3.0.3
+Flask-Login==0.6.3
+Werkzeug==3.0.4
+py7zr==0.22.0
+waitress==3.0.0
+python-dotenv==1.0.1
+APScheduler==3.10.4
+cryptography>=42.0        # Encrypt Decrypt Utility — AES-256-CBC + PKCS7

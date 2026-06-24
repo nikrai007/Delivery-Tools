@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}Admin · {{ platform_name }}{% endblock %}
+{% block page_title %}User activity{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+
+  <div class="lg:col-span-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm overflow-hidden">
+    <div class="p-5 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-3 flex-wrap">
+      <div>
+        <h2 class="text-sm font-semibold">All jobs</h2>
+        <p class="text-xs text-zinc-500 mt-0.5">{{ jobs|length }} records · newest first</p>
+      </div>
+      <div class="relative">
+        <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-[18px]">search</span>
+        <input id="filter" type="text" placeholder="Filter by user / input / status…"
+               class="pl-10 pr-3 h-9 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg w-64 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+      </div>
+    </div>
+    <div class="overflow-x-auto max-h-[75vh] overflow-y-auto">
+      <table id="jobsTable" class="w-full text-left text-sm">
+        <thead class="bg-zinc-50 dark:bg-zinc-800/50 text-zinc-500 border-b border-zinc-200 dark:border-zinc-800 sticky top-0 z-10">
+          <tr>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">When</th>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">User</th>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">Input</th>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">Type</th>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px] text-right">Files</th>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px] text-right">DELETEs</th>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px] text-right">Tables</th>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">Status</th>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">IP</th>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px] text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-zinc-100 dark:divide-zinc-800">
+          {% for j in jobs %}
+            <tr class="hover:bg-zinc-50/60 dark:hover:bg-zinc-800/40 transition-colors">
+              <td class="px-5 py-3 whitespace-nowrap text-zinc-500 tabular-nums">{{ j.created_at[:19].replace('T',' ') }}</td>
+              <td class="px-5 py-3 whitespace-nowrap font-medium">{{ j.username }}</td>
+              <td class="px-5 py-3 whitespace-nowrap max-w-xs">
+                <code class="font-mono text-[11px] bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded text-brand-600 dark:text-brand-300 truncate inline-block align-middle"
+                      title="{{ j.input_name }}">{{ j.input_name }}</code>
+              </td>
+              <td class="px-5 py-3 text-xs text-zinc-500 whitespace-nowrap">{{ j.input_type }}</td>
+              <td class="px-5 py-3 text-right tabular-nums whitespace-nowrap">{{ j.files_scanned }}</td>
+              <td class="px-5 py-3 text-right tabular-nums whitespace-nowrap">{{ j.delete_count }}</td>
+              <td class="px-5 py-3 text-right tabular-nums whitespace-nowrap">{{ j.unique_tables }}</td>
+              <td class="px-5 py-3 whitespace-nowrap">{% include "_status_badge.html" %}</td>
+              <td class="px-5 py-3 text-[11px] text-zinc-500 font-mono whitespace-nowrap">{{ j.ip_address or '—' }}</td>
+              <td class="px-5 py-3 text-right whitespace-nowrap">
+                <a href="{{ url_for('abr.admin_job', job_id=j.id) }}" class="text-brand-600 hover:text-brand-700 font-semibold text-xs">details →</a>
+              </td>
+            </tr>
+          {% else %}
+            <tr><td colspan="10" class="p-12 text-center text-sm text-zinc-500">No jobs yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <aside class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm p-5">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-sm font-semibold">Registered users</h3>
+      <span class="text-xs text-zinc-500 tabular-nums">{{ users|length }}</span>
+    </div>
+    <ul class="space-y-2">
+      {% for u in users %}
+        <li class="flex items-center justify-between gap-2">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <div class="h-8 w-8 rounded-full bg-brand-600 text-white flex items-center justify-center text-xs font-semibold shrink-0">
+              {{ u.username[:1]|upper }}
+            </div>
+            <div class="min-w-0">
+              <div class="text-sm font-medium truncate">{{ u.username }}</div>
+              <div class="text-[11px] text-zinc-500 truncate">{{ u.email or '—' }}</div>
+            </div>
+          </div>
+          {% if u.role == 'admin' %}
+            <span class="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-md bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 font-semibold">admin</span>
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  </aside>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const filter = document.getElementById('filter');
+  const rows = document.querySelectorAll('#jobsTable tbody tr');
+  filter.addEventListener('input', () => {
+    const q = filter.value.toLowerCase();
+    rows.forEach(r => { r.style.display = r.textContent.toLowerCase().includes(q) ? '' : 'none'; });
+  });
+</script>
+{% endblock %}

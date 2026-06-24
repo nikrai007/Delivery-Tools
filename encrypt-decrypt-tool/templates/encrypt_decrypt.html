@@ -1,0 +1,148 @@
+{% extends "tool_base.html" %}
+{% block title %}Encrypt Decrypt Utility · {{ platform_name }}{% endblock %}
+{% block tool_icon %}lock{% endblock %}
+{% block tool_title %}Encrypt Decrypt Utility{% endblock %}
+{% block tool_subtitle %}AES-256 · CBC{% endblock %}
+{% block tool_footer %}Encrypt Decrypt Utility · AES-256{% endblock %}
+
+{% block content %}
+<div class="glass-card rounded-2xl p-5 sm:p-7 max-w-4xl mx-auto">
+
+  {# IV / User Id #}
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+    <div class="flex flex-col gap-1.5">
+      <label for="customIv" class="text-[11px] font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400 ml-1">Custom IV</label>
+      <input id="customIv" type="text" placeholder="optional" spellcheck="false" autocomplete="off"
+             class="w-full font-mono text-sm rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-100/60 dark:bg-zinc-800/50 px-3 py-2.5 focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 outline-none transition">
+    </div>
+    <div class="flex flex-col gap-1.5">
+      <label for="userId" class="text-[11px] font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400 ml-1">User Id</label>
+      <input id="userId" type="text" placeholder="optional" spellcheck="false" autocomplete="off"
+             class="w-full font-mono text-sm rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-100/60 dark:bg-zinc-800/50 px-3 py-2.5 focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 outline-none transition">
+    </div>
+  </div>
+
+  {# Input #}
+  <div class="mt-4 flex flex-col gap-1.5">
+    <div class="flex items-center justify-between ml-1">
+      <label for="input" class="text-[11px] font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400">Plain String (encrypt) / Token (decrypt)</label>
+      <span class="text-[11px] font-mono text-zinc-400">UTF-8</span>
+    </div>
+    <textarea id="input" rows="4" placeholder="Enter text to encrypt, or a token to decrypt..." spellcheck="false"
+              class="w-full font-mono text-sm rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-100/60 dark:bg-zinc-800/50 px-3.5 py-3 resize-y focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 outline-none transition"></textarea>
+  </div>
+
+  {# Actions #}
+  <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
+    <div class="flex flex-wrap items-center gap-2">
+      <button id="encryptBtn"
+              class="btn-sheen inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-b from-brand-500 to-brand-700 shadow-lg shadow-brand-500/25 hover:-translate-y-0.5 transition-all active:scale-[0.98] disabled:opacity-50 disabled:translate-y-0 disabled:cursor-default">
+        <span class="material-symbols-outlined text-[18px]">lock</span> Encrypt
+      </button>
+      <button id="decryptBtn"
+              class="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-slate-600 hover:bg-slate-500 transition-colors active:scale-[0.98] disabled:opacity-50 disabled:cursor-default">
+        <span class="material-symbols-outlined text-[18px]">lock_open</span> Decrypt
+      </button>
+      <button id="nonceBtn"
+              class="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-50 disabled:cursor-default">
+        Nonce
+      </button>
+    </div>
+    <div class="flex items-center gap-1">
+      <button id="copyBtn" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold text-brand-600 dark:text-brand-300 hover:bg-brand-500/10 transition-colors">
+        <span class="material-symbols-outlined text-[18px]">content_copy</span> Copy
+      </button>
+      <button id="clearBtn" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 transition-colors">
+        <span class="material-symbols-outlined text-[18px]">delete</span> Clear
+      </button>
+    </div>
+  </div>
+
+  {# Output #}
+  <div class="mt-5 flex flex-col gap-1.5">
+    <div class="flex items-center justify-between ml-1">
+      <div class="flex items-center gap-2">
+        <label for="output" class="text-[11px] font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400">Output</label>
+        <span class="text-[10px] font-bold uppercase tracking-wide text-zinc-500 bg-zinc-200/70 dark:bg-zinc-800 border border-zinc-300/60 dark:border-zinc-700 rounded px-1.5 py-0.5">Read-only</span>
+      </div>
+      <span id="status" class="text-[11px] font-mono text-brand-600 dark:text-brand-300">STATUS: IDLE</span>
+    </div>
+    <textarea id="output" rows="5" readonly placeholder="Result will appear here..."
+              class="w-full font-mono text-sm rounded-xl border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900/70 px-3.5 py-3 resize-y outline-none break-all"></textarea>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  "use strict";
+  const API = "{{ url_for('edu.api') }}";
+  const $ = (id) => document.getElementById(id);
+  const els = {
+    input: $("input"), output: $("output"), customIv: $("customIv"), userId: $("userId"),
+    status: $("status"), encrypt: $("encryptBtn"), decrypt: $("decryptBtn"),
+    nonce: $("nonceBtn"), copy: $("copyBtn"), clear: $("clearBtn"),
+  };
+
+  function setStatus(text, isErr) {
+    els.status.textContent = "STATUS: " + text;
+    els.status.classList.toggle("text-rose-600", !!isErr);
+    els.status.classList.toggle("dark:text-rose-400", !!isErr);
+    els.status.classList.toggle("text-brand-600", !isErr);
+    els.status.classList.toggle("dark:text-brand-300", !isErr);
+  }
+
+  async function callApi(action) {
+    try {
+      const r = await fetch(API, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: action, text: els.input.value, custom_iv: els.customIv.value, user_id: els.userId.value }),
+      });
+      if (!r.ok) return { ok: false, error: "Request failed (" + r.status + ")" };
+      return await r.json();
+    } catch (e) { return { ok: false, error: String(e) }; }
+  }
+
+  async function run(action, busyText, doneText) {
+    const buttons = [els.encrypt, els.decrypt, els.nonce];
+    buttons.forEach((b) => (b.disabled = true));
+    setStatus(busyText);
+    const res = await callApi(action);
+    buttons.forEach((b) => (b.disabled = false));
+    if (res && res.ok) {
+      els.output.value = res.value;
+      setStatus(doneText);
+      window.toast(doneText);
+    } else {
+      const msg = (res && res.error) || "Unknown error";
+      els.output.value = "⚠ " + msg;
+      setStatus("ERROR", true);
+      window.toast(msg, true);
+    }
+  }
+
+  els.encrypt.addEventListener("click", () => run("encrypt", "ENCRYPTING", "ENCRYPTED"));
+  els.decrypt.addEventListener("click", () => run("decrypt", "DECRYPTING", "DECRYPTED"));
+  els.nonce.addEventListener("click", () => run("nonce", "GENERATING", "NONCE READY"));
+
+  els.copy.addEventListener("click", async () => {
+    const text = els.output.value;
+    if (!text) { window.toast("Nothing to copy", true); return; }
+    const ok = await window.copyToClipboard(text);
+    window.toast(ok ? "Copied to clipboard" : "Copy failed — select & press Ctrl+C", !ok);
+  });
+
+  els.clear.addEventListener("click", () => {
+    els.input.value = ""; els.output.value = "";
+    setStatus("IDLE"); els.input.focus();
+  });
+
+  // Ctrl+Enter = Encrypt, Ctrl+Shift+Enter = Decrypt
+  document.addEventListener("keydown", (e) => {
+    if (e.ctrlKey && e.key === "Enter") {
+      e.preventDefault();
+      if (e.shiftKey) els.decrypt.click(); else els.encrypt.click();
+    }
+  });
+</script>
+{% endblock %}

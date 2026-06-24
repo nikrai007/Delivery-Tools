@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block title %}History · {{ platform_name }}{% endblock %}
+{% block page_title %}{% if show_user %}All activity{% else %}Your job history{% endif %}{% endblock %}
+
+{% block content %}
+{# ─── Filter bar ───────────────────────────────────────────────── #}
+<form method="get" action="{{ url_for('abr.history') }}"
+      class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm p-4">
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
+    <label class="block sm:col-span-2">
+      <span class="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold">Search</span>
+      <input type="text" name="q" value="{{ q }}"
+             placeholder="enhancement or input filename"
+             class="mt-1 w-full h-9 px-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg
+                    text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+    </label>
+    <label class="block">
+      <span class="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold">Prod date from</span>
+      <input type="date" name="prod_from" value="{{ prod_from }}"
+             class="mt-1 w-full h-9 px-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg
+                    text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+    </label>
+    <label class="block">
+      <span class="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold">Prod date to</span>
+      <input type="date" name="prod_to" value="{{ prod_to }}"
+             class="mt-1 w-full h-9 px-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg
+                    text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+    </label>
+    <label class="block">
+      <span class="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold">Status</span>
+      <select name="status"
+              class="mt-1 w-full h-9 px-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg
+                     text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+        {% for s in ['', 'collecting','reviewed','generated','failed'] %}
+          <option value="{{ s }}" {% if status == s %}selected{% endif %}>{{ s or 'any' }}</option>
+        {% endfor %}
+      </select>
+    </label>
+  </div>
+  <div class="flex items-center justify-between mt-3 gap-2">
+    {% if is_admin %}
+      <label class="inline-flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400">
+        <input type="checkbox" name="all" value="1" {% if show_all %}checked{% endif %}
+               class="h-4 w-4 rounded border-zinc-300 text-brand-600 focus:ring-brand-500">
+        Show all users' jobs
+      </label>
+    {% else %}<span></span>{% endif %}
+    <div class="flex gap-2">
+      <a href="{{ url_for('abr.history') }}"
+         class="h-9 px-3 inline-flex items-center rounded-lg border border-zinc-300 dark:border-zinc-700 text-xs">
+        Reset
+      </a>
+      <button type="submit"
+              class="h-9 px-3 inline-flex items-center gap-1 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-xs font-medium shadow-sm">
+        <span class="material-symbols-outlined text-[16px]">filter_alt</span>
+        Filter
+      </button>
+    </div>
+  </div>
+</form>
+
+{# ─── Table ────────────────────────────────────────────────────── #}
+<div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm overflow-hidden">
+  {% if jobs %}
+    <div class="overflow-x-auto">
+      <table class="w-full text-left text-sm">
+        <thead class="bg-zinc-50 dark:bg-zinc-800/50 text-zinc-500 border-b border-zinc-200 dark:border-zinc-800">
+          <tr>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">When</th>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">Enhancement</th>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">Prod date</th>
+            {% if show_user %}<th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">User</th>{% endif %}
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">Input</th>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">Source</th>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px] text-right">DELETEs</th>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px] text-right">Tables</th>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">Status</th>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px] text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-zinc-100 dark:divide-zinc-800">
+          {% for j in jobs %}
+            <tr class="hover:bg-zinc-50/60 dark:hover:bg-zinc-800/40 transition-colors">
+              <td class="px-5 py-3 whitespace-nowrap text-zinc-500 tabular-nums">{{ j.created_at[:19].replace('T',' ') }}</td>
+              <td class="px-5 py-3 whitespace-nowrap font-medium max-w-xs truncate" title="{{ j.enhancement_name }}">{{ j.enhancement_name or '—' }}</td>
+              <td class="px-5 py-3 whitespace-nowrap tabular-nums">{{ j.prod_date or '—' }}</td>
+              {% if show_user %}<td class="px-5 py-3 whitespace-nowrap font-medium">{{ j.owner_username }}</td>{% endif %}
+              <td class="px-5 py-3 whitespace-nowrap max-w-xs">
+                <code class="font-mono text-xs bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded text-brand-600 dark:text-brand-300 truncate inline-block align-middle"
+                      title="{{ j.input_name }}">{{ j.input_name }}</code>
+              </td>
+              <td class="px-5 py-3 text-xs whitespace-nowrap">
+                {% if j.source == 'scheduler' %}
+                  <span class="inline-flex items-center gap-1 text-violet-600 dark:text-violet-400">
+                    <span class="material-symbols-outlined text-[14px]">cloud_sync</span>
+                    {{ j.source_name or 'scheduler' }}
+                  </span>
+                {% else %}
+                  <span class="text-zinc-500">manual</span>
+                {% endif %}
+              </td>
+              <td class="px-5 py-3 text-right tabular-nums whitespace-nowrap">{{ j.delete_count }}</td>
+              <td class="px-5 py-3 text-right tabular-nums whitespace-nowrap">{{ j.unique_tables }}</td>
+              <td class="px-5 py-3 whitespace-nowrap">{% include "_status_badge.html" %}</td>
+              <td class="px-5 py-3 text-right whitespace-nowrap">
+                <div class="inline-flex items-center gap-3 text-xs font-semibold">
+                  {% if j.status == 'generated' %}
+                    {% if 'bundle_file' in j.keys() and j.bundle_file %}
+                      <a href="{{ url_for('abr.download', job_id=j.id, kind='bundle') }}"
+                         class="inline-flex items-center gap-1 text-brand-600 hover:text-brand-700">
+                        <span class="material-symbols-outlined text-[14px]">folder_zip</span> bundle
+                      </a>
+                    {% endif %}
+                    <a href="{{ url_for('abr.result', job_id=j.id) }}" class="text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300">view</a>
+                  {% elif j.status == 'reviewed' %}
+                    <a href="{{ url_for('abr.review', job_id=j.id) }}" class="text-brand-600 hover:text-brand-700">review</a>
+                  {% else %}
+                    <span class="text-zinc-400">—</span>
+                  {% endif %}
+                  {% if is_admin %}
+                    <a href="{{ url_for('abr.admin_job', job_id=j.id) }}" class="text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300">details</a>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="p-12 text-center text-sm text-zinc-500">No jobs match the current filters.</div>
+  {% endif %}
+</div>
+{% endblock %}

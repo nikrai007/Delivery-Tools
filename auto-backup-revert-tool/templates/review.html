@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Review · Job #{{ job.id }}{% endblock %}
+{% block page_title %}Review delete.sql · Job #{{ job.id }}{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+  <div class="bg-white dark:bg-zinc-900 p-4 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm">
+    <p class="text-xs font-medium text-zinc-500 uppercase tracking-wider">Files scanned</p>
+    <p class="mt-1 text-2xl font-bold tabular-nums">{{ job.files_scanned }}</p>
+  </div>
+  <div class="bg-white dark:bg-zinc-900 p-4 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm">
+    <p class="text-xs font-medium text-zinc-500 uppercase tracking-wider">DELETEs collected</p>
+    <p class="mt-1 text-2xl font-bold tabular-nums">{{ job.delete_count }}</p>
+  </div>
+  <div class="bg-white dark:bg-zinc-900 p-4 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm">
+    <p class="text-xs font-medium text-zinc-500 uppercase tracking-wider">Warnings</p>
+    <p class="mt-1 text-2xl font-bold tabular-nums {% if job.warning_count %}text-amber-500{% endif %}">{{ job.warning_count }}</p>
+  </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+  <section class="lg:col-span-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm overflow-hidden">
+    <div class="p-5 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-3 flex-wrap">
+      <h2 class="text-sm font-semibold">delete.sql preview</h2>
+      <div class="flex items-center gap-2">
+        <a href="{{ url_for('abr.download', job_id=job.id, kind='delete') }}"
+           class="inline-flex items-center gap-2 h-9 px-3 rounded-lg border border-zinc-300 dark:border-zinc-700 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+          <span class="material-symbols-outlined text-[16px]">download</span>
+          Download
+        </a>
+        <form method="post">
+          <button type="submit"
+                  class="inline-flex items-center gap-2 h-9 px-3 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium shadow-sm transition-colors">
+            Generate BACKUP / REVERT
+            <span class="material-symbols-outlined text-[16px]">arrow_forward</span>
+          </button>
+        </form>
+      </div>
+    </div>
+    <pre class="font-mono text-[12px] leading-relaxed p-5 bg-zinc-50 dark:bg-zinc-950 max-h-[70vh] overflow-auto whitespace-pre">{{ preview }}</pre>
+    {% if truncated %}
+      <div class="px-5 py-2 text-[11px] text-zinc-500 border-t border-zinc-200 dark:border-zinc-800">
+        Preview truncated — full file available via download.
+      </div>
+    {% endif %}
+  </section>
+
+  <aside class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm overflow-hidden">
+    <div class="p-5 border-b border-zinc-200 dark:border-zinc-800">
+      <h2 class="text-sm font-semibold">Files traversed ({{ files|length }})</h2>
+      <p class="text-[11px] text-zinc-500 mt-1">Natural-sort order</p>
+    </div>
+    <div class="max-h-[70vh] overflow-auto divide-y divide-zinc-100 dark:divide-zinc-800">
+      {% for f in files %}
+        <div class="px-5 py-2.5 flex items-center justify-between gap-3 hover:bg-zinc-50/60 dark:hover:bg-zinc-800/30 transition-colors">
+          <span class="font-mono text-[12px] truncate text-zinc-700 dark:text-zinc-300" title="{{ f.path }}">{{ f.path }}</span>
+          <span class="shrink-0 text-[11px] tabular-nums font-medium
+                       {% if f.deletes %}text-emerald-700 bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-300
+                       {% else %}text-zinc-500 bg-zinc-100 dark:bg-zinc-800 dark:text-zinc-400{% endif %}
+                       px-2 py-0.5 rounded-md">
+            {{ f.deletes }} DEL
+          </span>
+        </div>
+      {% else %}
+        <div class="px-5 py-8 text-sm text-zinc-500">No SQL files were found.</div>
+      {% endfor %}
+    </div>
+  </aside>
+</div>
+{% endblock %}

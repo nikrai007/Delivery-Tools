@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}Register · {{ platform_name }}{% endblock %}
+
+{% block content_auth %}
+<div class="flex flex-col items-center gap-8">
+
+  <header class="relative flex flex-col items-center gap-3">
+    <div class="logo-glow"></div>
+    <img src="{{ url_for('static', filename='logo.svg') }}" alt="" class="relative h-14 w-14 rounded-2xl shadow-lg shadow-brand-500/25">
+    <h1 class="text-2xl font-bold tracking-tight bg-gradient-to-r from-brand-500 to-brand-800 dark:from-brand-200 dark:to-brand-400 bg-clip-text text-transparent">{{ platform_name }}</h1>
+    <p class="text-xs text-zinc-500 dark:text-zinc-400">Create your account</p>
+  </header>
+
+  <section class="glass-card shimmer-sweep w-full p-7 rounded-2xl flex flex-col gap-5">
+    <form method="post" class="flex flex-col gap-4">
+
+      {# ── Username ── #}
+      <div class="flex flex-col gap-1.5">
+        <label class="text-[11px] font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400 ml-1" for="username">Username</label>
+        <div class="input-glow relative flex items-center bg-zinc-100/60 dark:bg-zinc-800/40 rounded-xl border border-zinc-200/80 dark:border-white/5">
+          <span class="material-symbols-outlined absolute left-4 text-zinc-400 text-[20px]">person</span>
+          <input id="username" name="username" type="text" required minlength="3" maxlength="32"
+                 pattern="[A-Za-z0-9._-]+" value="{{ username or '' }}" autofocus
+                 class="w-full bg-transparent border-none py-3.5 pl-12 pr-4 text-sm font-mono placeholder:text-zinc-400 focus:ring-0 focus:outline-none">
+        </div>
+        <p class="text-[11px] text-zinc-500 dark:text-zinc-400 ml-1">3–32 chars · letters, digits, <code class="font-mono">. _ -</code></p>
+      </div>
+
+      {# ── Full name ── #}
+      <div class="flex flex-col gap-1.5">
+        <label class="text-[11px] font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400 ml-1" for="full_name">
+          Full name <span class="text-zinc-400 font-normal normal-case tracking-normal">(optional)</span>
+        </label>
+        <div class="input-glow relative flex items-center bg-zinc-100/60 dark:bg-zinc-800/40 rounded-xl border border-zinc-200/80 dark:border-white/5">
+          <span class="material-symbols-outlined absolute left-4 text-zinc-400 text-[20px]">badge</span>
+          <input id="full_name" name="full_name" type="text" maxlength="120" value="{{ full_name or '' }}"
+                 class="w-full bg-transparent border-none py-3.5 pl-12 pr-4 text-sm placeholder:text-zinc-400 focus:ring-0 focus:outline-none">
+        </div>
+      </div>
+
+      {# ── Employee code ── #}
+      <div class="flex flex-col gap-1.5">
+        <label class="text-[11px] font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400 ml-1" for="employee_code">
+          Employee code <span class="text-zinc-400 font-normal normal-case tracking-normal">(optional)</span>
+        </label>
+        <div class="input-glow relative flex items-center bg-zinc-100/60 dark:bg-zinc-800/40 rounded-xl border border-zinc-200/80 dark:border-white/5">
+          <span class="material-symbols-outlined absolute left-4 text-zinc-400 text-[20px]">tag</span>
+          <input id="employee_code" name="employee_code" type="text" maxlength="40" value="{{ employee_code or '' }}"
+                 class="w-full bg-transparent border-none py-3.5 pl-12 pr-4 text-sm font-mono placeholder:text-zinc-400 focus:ring-0 focus:outline-none">
+        </div>
+      </div>
+
+      {# ── Email ── #}
+      <div class="flex flex-col gap-1.5">
+        <label class="text-[11px] font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400 ml-1" for="email">
+          Email <span class="text-zinc-400 font-normal normal-case tracking-normal">(optional)</span>
+        </label>
+        <div class="input-glow relative flex items-center bg-zinc-100/60 dark:bg-zinc-800/40 rounded-xl border border-zinc-200/80 dark:border-white/5">
+          <span class="material-symbols-outlined absolute left-4 text-zinc-400 text-[20px]">mail</span>
+          <input id="email" name="email" type="email" value="{{ email or '' }}"
+                 class="w-full bg-transparent border-none py-3.5 pl-12 pr-4 text-sm font-mono placeholder:text-zinc-400 focus:ring-0 focus:outline-none">
+        </div>
+      </div>
+
+      {# ── Password ── #}
+      <div class="flex flex-col gap-1.5">
+        <label class="text-[11px] font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400 ml-1" for="password">Password</label>
+        <div class="input-glow relative flex items-center bg-zinc-100/60 dark:bg-zinc-800/40 rounded-xl border border-zinc-200/80 dark:border-white/5">
+          <span class="material-symbols-outlined absolute left-4 text-zinc-400 text-[20px]">lock</span>
+          <input id="password" name="password" type="password" required minlength="8"
+                 class="w-full bg-transparent border-none py-3.5 pl-12 pr-4 text-sm font-mono placeholder:text-zinc-400 focus:ring-0 focus:outline-none">
+        </div>
+        <p class="text-[11px] text-zinc-500 dark:text-zinc-400 ml-1">Minimum 8 characters.</p>
+      </div>
+
+      {# ── Confirm password ── #}
+      <div class="flex flex-col gap-1.5">
+        <label class="text-[11px] font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400 ml-1" for="confirm">Confirm password</label>
+        <div class="input-glow relative flex items-center bg-zinc-100/60 dark:bg-zinc-800/40 rounded-xl border border-zinc-200/80 dark:border-white/5">
+          <span class="material-symbols-outlined absolute left-4 text-zinc-400 text-[20px]">verified</span>
+          <input id="confirm" name="confirm" type="password" required minlength="8"
+                 class="w-full bg-transparent border-none py-3.5 pl-12 pr-4 text-sm font-mono placeholder:text-zinc-400 focus:ring-0 focus:outline-none">
+        </div>
+      </div>
+
+      {# ── Team selection ── #}
+      {% if teams %}
+      <div class="flex flex-col gap-1.5">
+        <label class="text-[11px] font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400 ml-1" for="team_id">
+          Join a team <span class="text-zinc-400 font-normal normal-case tracking-normal">(optional — requires approval)</span>
+        </label>
+        <div class="input-glow relative flex items-center bg-zinc-100/60 dark:bg-zinc-800/40 rounded-xl border border-zinc-200/80 dark:border-white/5">
+          <span class="material-symbols-outlined absolute left-4 text-zinc-400 text-[20px]">group</span>
+          <select id="team_id" name="team_id"
+                  class="w-full bg-transparent border-none py-3.5 pl-12 pr-4 text-sm focus:ring-0 focus:outline-none appearance-none">
+            <option value="">— no team —</option>
+            {% for t in teams %}
+              <option value="{{ t.id }}" {% if selected_team == t.id %}selected{% endif %}>{{ t.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <p class="text-[11px] text-zinc-500 dark:text-zinc-400 ml-1">
+          If you select a team, your account will require approval from the team leader before you can access the platform.
+        </p>
+      </div>
+      {% endif %}
+
+      <button type="submit"
+              class="btn-sheen w-full py-3.5 rounded-xl bg-gradient-to-b from-brand-500 to-brand-700 text-white font-semibold text-sm tracking-wide shadow-lg shadow-brand-500/25 hover:-translate-y-0.5 transition-all active:scale-[0.98] mt-1">
+        Create account
+      </button>
+    </form>
+
+    <div class="text-center">
+      <p class="text-xs text-zinc-500 dark:text-zinc-400">
+        Already have an account?
+        <a href="{{ url_for('auth.login') }}" class="text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200 font-semibold">Sign in</a>
+      </p>
+    </div>
+  </section>
+</div>
+{% endblock %}

@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Sign in · {{ platform_name }}{% endblock %}
+
+{% block content_auth %}
+<div class="flex flex-col items-center gap-8">
+
+  <header class="relative flex flex-col items-center gap-3">
+    <div class="logo-glow"></div>
+    <img src="{{ url_for('static', filename='logo.svg') }}" alt="" class="relative h-14 w-14 rounded-2xl shadow-lg shadow-brand-500/25">
+    <h1 class="text-2xl font-bold tracking-tight bg-gradient-to-r from-brand-500 to-brand-800 dark:from-brand-200 dark:to-brand-400 bg-clip-text text-transparent">{{ platform_name }}</h1>
+    <p class="text-xs text-zinc-500 dark:text-zinc-400">Sign in to continue</p>
+  </header>
+
+  <section class="glass-card shimmer-sweep w-full p-7 rounded-2xl flex flex-col gap-6">
+    <form method="post" class="flex flex-col gap-5">
+      <div class="flex flex-col gap-1.5">
+        <label class="text-[11px] font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400 ml-1" for="username">Username</label>
+        <div class="input-glow relative flex items-center bg-zinc-100/60 dark:bg-zinc-800/40 rounded-xl border border-zinc-200/80 dark:border-white/5">
+          <span class="material-symbols-outlined absolute left-4 text-zinc-400 text-[20px]">person</span>
+          <input id="username" name="username" type="text" placeholder="admin" required autofocus value="{{ username or '' }}"
+                 class="w-full bg-transparent border-none py-3.5 pl-12 pr-4 text-sm font-mono placeholder:text-zinc-400 focus:ring-0 focus:outline-none">
+        </div>
+      </div>
+
+      <div class="flex flex-col gap-1.5">
+        <label class="text-[11px] font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400 ml-1" for="password">Password</label>
+        <div class="input-glow relative flex items-center bg-zinc-100/60 dark:bg-zinc-800/40 rounded-xl border border-zinc-200/80 dark:border-white/5">
+          <span class="material-symbols-outlined absolute left-4 text-zinc-400 text-[20px]">lock</span>
+          <input id="password" name="password" type="password" placeholder="••••••••" required
+                 class="w-full bg-transparent border-none py-3.5 pl-12 pr-4 text-sm font-mono placeholder:text-zinc-400 focus:ring-0 focus:outline-none">
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between text-xs font-medium">
+        <label class="flex items-center gap-2 cursor-pointer group">
+          <input type="checkbox" name="remember" class="w-4 h-4 rounded border-zinc-300 dark:border-zinc-700 text-brand-600 focus:ring-brand-500">
+          <span class="text-zinc-500 dark:text-zinc-400 group-hover:text-zinc-900 dark:group-hover:text-zinc-200 transition-colors">Remember me</span>
+        </label>
+        <a href="{{ url_for('auth.forgot') }}" class="text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200">Forgot password?</a>
+      </div>
+
+      <button type="submit"
+              class="btn-sheen w-full py-3.5 rounded-xl bg-gradient-to-b from-brand-500 to-brand-700 text-white font-semibold text-sm tracking-wide shadow-lg shadow-brand-500/25 hover:-translate-y-0.5 transition-all active:scale-[0.98]">
+        Sign in
+      </button>
+    </form>
+
+    <div class="text-center">
+      <p class="text-xs text-zinc-500 dark:text-zinc-400">
+        No account yet?
+        <a href="{{ url_for('auth.register') }}" class="text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200 font-semibold">Register</a>
+      </p>
+    </div>
+  </section>
+</div>
+{% endblock %}

@@ -1,0 +1,395 @@
+{% extends "base.html" %}
+{% block title %}{% if mode == 'new' %}New{% else %}Edit{% endif %} watched source · {{ platform_name }}{% endblock %}
+{% block page_title %}{% if mode == 'new' %}New watched source{% else %}Edit watched source &nbsp;·&nbsp; #{{ source.id }}{% endif %}{% endblock %}
+
+{% block content %}
+<form method="post" id="sourceForm" class="space-y-6 max-w-4xl">
+  <input type="hidden" name="kind" value="{{ kind }}">
+
+  {# ─── Connector section ─────────────────────────────────────────── #}
+  <section class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm p-5">
+    <div class="flex items-start justify-between gap-3 mb-4">
+      <div>
+        <h2 class="text-sm font-semibold">
+          {% if kind == 'git' %}Git repository{% else %}Local folder / network share{% endif %}
+        </h2>
+        <p class="text-xs text-zinc-500 mt-1">
+          {% if kind == 'git' %}
+            Polls a Git branch on its schedule, pulls new <code class="font-mono text-[11px]">.sql / .zip / .7z</code> files under the configured sub-path, and drops the generated bundle ZIP at the destination folder.
+          {% else %}
+            Polls a folder on its schedule, picks up new <code class="font-mono text-[11px]">.sql / .zip / .7z</code> files, and drops the generated bundle ZIP at the destination folder.
+          {% endif %}
+        </p>
+      </div>
+      <span class="material-symbols-outlined text-brand-500 text-[28px]">
+        {% if kind == 'git' %}hub{% else %}folder{% endif %}
+      </span>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <label class="block sm:col-span-2">
+        <span class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Name <span class="text-rose-500">*</span></span>
+        <input name="name" type="text" required maxlength="64" minlength="2"
+               pattern="[A-Za-z0-9._\- ]{2,64}"
+               value="{{ source.name if source else '' }}"
+               placeholder="e.g. Release queue – CRM"
+               class="mt-1 w-full h-10 px-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+      </label>
+
+      <label class="block sm:col-span-2">
+        <span class="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+          Source {% if kind == 'git' %}Git URL{% else %}folder path{% endif %} <span class="text-rose-500">*</span>
+        </span>
+        <input name="source_path" type="text" required
+               value="{{ source.source_path if source else '' }}"
+               placeholder="{% if kind == 'git' %}https://github.com/your-org/your-repo.git{% else %}C:\releases\inbox  or  \\fs01\releases\inbox{% endif %}"
+               class="mt-1 w-full h-10 px-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg font-mono text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+      </label>
+
+      {% if kind == 'git' %}
+        <label class="block">
+          <span class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Branch</span>
+          <input name="branch" type="text"
+                 value="{{ source.branch if source else 'main' }}"
+                 placeholder="main"
+                 class="mt-1 w-full h-10 px-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg font-mono text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+        </label>
+        <label class="block">
+          <span class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Personal Access Token</span>
+          <input name="pat" type="password"
+                 placeholder="{% if existing_pat %}(saved — leave blank to keep current PAT){% else %}ghp_… or similar{% endif %}"
+                 class="mt-1 w-full h-10 px-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg font-mono text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+          <span class="block mt-1 text-[11px] text-zinc-500">For private repos. Stored server-side; never shown again.</span>
+        </label>
+      {% endif %}
+
+      <label class="block {% if kind == 'git' %}sm:col-span-2{% endif %}">
+        <span class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Sub-path (optional)</span>
+        <input name="sub_path" type="text"
+               value="{{ source.sub_path if source else '' }}"
+               placeholder="{% if kind == 'git' %}releases/2026/Q2{% else %}leave blank to scan the whole folder{% endif %}"
+               class="mt-1 w-full h-10 px-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg font-mono text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+      </label>
+
+      <label class="block sm:col-span-2">
+        <span class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Destination folder (local) <span class="text-rose-500">*</span></span>
+        <input name="dest_path" type="text" required
+               value="{{ source.dest_path if source else '' }}"
+               placeholder="C:\releases\outbox"
+               class="mt-1 w-full h-10 px-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg font-mono text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+        <span class="block mt-1 text-[11px] text-zinc-500">Generated <code class="font-mono">BUNDLE_*.zip</code> files are dropped here.</span>
+      </label>
+
+      <label class="block">
+        <span class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Owner user <span class="text-rose-500">*</span></span>
+        <select name="owner_user_id" required
+                class="mt-1 w-full h-10 px-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+          {% set current_owner = source.owner_user_id if source else current_user.id %}
+          {% for u in users %}
+            <option value="{{ u.id }}" {% if u.id == current_owner %}selected{% endif %}>{{ u.username }} ({{ u.role }})</option>
+          {% endfor %}
+        </select>
+        <span class="block mt-1 text-[11px] text-zinc-500">Scheduler-driven jobs are attributed to this user.</span>
+      </label>
+
+      {% if mode == 'edit' %}
+        <label class="block">
+          <span class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Enabled</span>
+          <span class="mt-1 inline-flex items-center gap-2 h-10 px-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm">
+            <input type="checkbox" name="enabled" {% if source.enabled %}checked{% endif %}
+                   class="h-4 w-4 rounded border-zinc-300 text-brand-600 focus:ring-brand-500">
+            Scheduler active
+          </span>
+        </label>
+      {% else %}
+        <input type="hidden" name="enabled" value="on">
+      {% endif %}
+    </div>
+  </section>
+
+  {# ─── Schedule section ───────────────────────────────────────────── #}
+  <section class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm p-5">
+    <div class="flex items-start justify-between gap-3 mb-4">
+      <div>
+        <h2 class="text-sm font-semibold">Schedule</h2>
+        <p class="text-xs text-zinc-500 mt-1">Configure when the scheduler should fire. Day-of-week mask, time slots, time zone, and date range are all native to APScheduler.</p>
+      </div>
+      <span class="material-symbols-outlined text-brand-500 text-[28px]">schedule</span>
+    </div>
+
+    {# Mode picker #}
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+      {% set mode_descs = {
+        'weekly_at':     ('event_repeat', 'Specific times on chosen days', 'e.g. Mon–Fri at 09:00, 14:00'),
+        'every_minutes': ('timer',         'Every N minutes',                'e.g. every 15 min, weekdays'),
+        'cron':          ('terminal',      'Custom cron expression',         'advanced — 5-field cron'),
+      } %}
+      {% for m in schedule_modes %}
+        {% set icon, label, hint = mode_descs[m] %}
+        <label class="cursor-pointer relative">
+          <input type="radio" name="schedule_mode" value="{{ m }}" class="peer sr-only schedule-mode"
+                 {% if schedule.mode == m %}checked{% endif %}>
+          <div class="border-2 rounded-xl p-3 transition-colors
+                      border-zinc-200 dark:border-zinc-700
+                      peer-checked:border-brand-500 peer-checked:bg-brand-50/40 peer-checked:dark:bg-brand-900/20">
+            <div class="flex items-start gap-2">
+              <span class="material-symbols-outlined text-[20px] text-brand-500">{{ icon }}</span>
+              <div>
+                <p class="text-sm font-semibold">{{ label }}</p>
+                <p class="text-[11px] text-zinc-500">{{ hint }}</p>
+              </div>
+            </div>
+          </div>
+        </label>
+      {% endfor %}
+    </div>
+
+    {# Common: day-of-week mask + presets #}
+    <div class="space-y-3 mb-4 mode-section" data-mode="weekly_at,every_minutes">
+      <div>
+        <span class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Run on days</span>
+        <div class="mt-2 flex flex-wrap gap-2">
+          {% for d in day_keys %}
+            <label class="cursor-pointer">
+              <input type="checkbox" name="schedule_days" value="{{ d }}" class="peer sr-only day-check"
+                     {% if d in (schedule.days or []) %}checked{% endif %}>
+              <span class="inline-flex items-center justify-center w-12 h-9 rounded-lg text-xs font-semibold
+                           border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300
+                           peer-checked:bg-brand-600 peer-checked:text-white peer-checked:border-brand-600">
+                {{ day_labels[d] }}
+              </span>
+            </label>
+          {% endfor %}
+        </div>
+        <div class="mt-2 flex flex-wrap gap-2 text-[11px]">
+          <span class="text-zinc-500">Presets:</span>
+          {% set preset_labels = {
+            'every_day':    'Every day',
+            'weekdays':     'Mon–Fri',
+            'weekends':     'Sat–Sun',
+            'mideast_week': 'Sun–Thu',
+          } %}
+          {% for key, days_list in presets.items() %}
+            <button type="button" data-preset="{{ days_list|join(',') }}"
+                    class="preset-btn h-7 px-2 rounded-md border border-zinc-200 dark:border-zinc-700 hover:bg-brand-50 dark:hover:bg-brand-900/30 text-zinc-600 dark:text-zinc-300">
+              {{ preset_labels[key] }}
+            </button>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    {# Weekly time slots #}
+    <div class="mb-4 mode-section" data-mode="weekly_at">
+      <span class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Time slot(s) <span class="text-rose-500">*</span></span>
+      <div id="timeSlots" class="mt-2 space-y-2">
+        {% set times_view = schedule.times or ['09:00'] %}
+        {% for t in times_view %}
+          <div class="time-slot flex items-center gap-2">
+            <input type="time" name="schedule_times" value="{{ t }}"
+                   class="h-9 w-32 px-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm">
+            <button type="button" class="slot-remove h-9 w-9 inline-flex items-center justify-center rounded-md text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30">
+              <span class="material-symbols-outlined text-[18px]">remove_circle</span>
+            </button>
+          </div>
+        {% endfor %}
+      </div>
+      <button type="button" id="addSlot"
+              class="mt-2 inline-flex items-center gap-1 h-8 px-2 rounded-md text-xs text-brand-600 hover:text-brand-700">
+        <span class="material-symbols-outlined text-[16px]">add</span> Add time slot
+      </button>
+    </div>
+
+    {# Every-N-minutes input #}
+    <div class="mb-4 mode-section" data-mode="every_minutes">
+      <label class="block max-w-xs">
+        <span class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Interval (minutes) <span class="text-rose-500">*</span></span>
+        <input type="number" name="schedule_interval_minutes" min="1" max="720"
+               value="{{ schedule.interval_minutes or 15 }}"
+               class="mt-1 w-full h-10 px-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg font-mono text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+        <span class="block mt-1 text-[11px] text-zinc-500">1..720 minutes (up to every 12 hours). Restricted to the days selected above. For daily+ cadence, use the &quot;specific times on chosen days&quot; mode.</span>
+      </label>
+    </div>
+
+    {# Cron expression #}
+    <div class="mb-4 mode-section" data-mode="cron">
+      <label class="block">
+        <span class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Cron expression <span class="text-rose-500">*</span></span>
+        <input type="text" name="schedule_cron_expr"
+               value="{{ schedule.cron_expr or '0 */2 * * *' }}"
+               placeholder="0 */2 * * *"
+               class="mt-1 w-full h-10 px-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg font-mono text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+        <span class="block mt-1 text-[11px] text-zinc-500">Standard 5-field cron. Day-of-week mask above is ignored for cron mode (use the cron expression instead).</span>
+      </label>
+    </div>
+
+    {# TZ + Date range + Pause #}
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <label class="block">
+        <span class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Time zone</span>
+        <select name="schedule_timezone"
+                class="mt-1 w-full h-10 px-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+          {% for tz in timezones %}
+            <option value="{{ tz }}" {% if schedule.timezone == tz %}selected{% endif %}>{{ tz }}</option>
+          {% endfor %}
+        </select>
+      </label>
+
+      <div class="grid grid-cols-2 gap-2">
+        <label class="block">
+          <span class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Valid from</span>
+          <input type="date" name="schedule_start_date" value="{{ schedule.start_date or '' }}"
+                 class="mt-1 w-full h-10 px-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm">
+        </label>
+        <label class="block">
+          <span class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Valid until</span>
+          <input type="date" name="schedule_end_date" value="{{ schedule.end_date or '' }}"
+                 class="mt-1 w-full h-10 px-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm">
+        </label>
+      </div>
+
+      <label class="block sm:col-span-2">
+        <span class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Pause until (optional, UTC)</span>
+        <input type="datetime-local" name="schedule_pause_until"
+               value="{{ (schedule.pause_until or '')|replace('Z','') }}"
+               class="mt-1 w-full sm:w-72 h-10 px-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm">
+        <span class="block mt-1 text-[11px] text-zinc-500">Temporary snooze. The scheduler skips any fire before this instant. Leave blank to ignore.</span>
+      </label>
+    </div>
+
+    {# Live preview #}
+    <div class="mt-5 p-4 rounded-lg bg-zinc-50 dark:bg-zinc-800/60 border border-dashed border-zinc-300 dark:border-zinc-700">
+      <div class="flex items-center gap-2 mb-2">
+        <span class="material-symbols-outlined text-[18px] text-brand-500">visibility</span>
+        <h3 class="text-xs font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-300">Next 5 fire times</h3>
+        <button type="button" id="refreshPreview" class="ml-auto text-xs text-brand-600 hover:text-brand-700 inline-flex items-center gap-1">
+          <span class="material-symbols-outlined text-[14px]">refresh</span> Refresh
+        </button>
+      </div>
+      <p id="previewLabel" class="text-xs text-zinc-500 mb-2">—</p>
+      <ol id="previewList" class="font-mono text-[12px] space-y-1 text-zinc-700 dark:text-zinc-200 list-decimal pl-5">
+        <li class="text-zinc-400">(preview will appear here)</li>
+      </ol>
+      <p id="previewErrors" class="text-[11px] text-rose-600 dark:text-rose-400 mt-2 hidden"></p>
+    </div>
+  </section>
+
+  <div class="flex justify-end gap-2">
+    <a href="{{ url_for('abr.admin_sources') }}"
+       class="h-10 px-4 inline-flex items-center rounded-lg border border-zinc-300 dark:border-zinc-700 text-sm">
+      Cancel
+    </a>
+    <button type="submit"
+            class="h-10 px-4 inline-flex items-center gap-2 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium shadow-sm">
+      <span class="material-symbols-outlined text-[18px]">save</span>
+      {% if mode == 'new' %}Create watched source{% else %}Save changes{% endif %}
+    </button>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // ----- Mode toggle: show only the section relevant to the chosen mode.
+  const modeRadios = document.querySelectorAll('.schedule-mode');
+  const sections   = document.querySelectorAll('.mode-section');
+  function applyMode() {
+    const v = document.querySelector('.schedule-mode:checked')?.value;
+    sections.forEach(sec => {
+      const allow = (sec.dataset.mode || '').split(',');
+      sec.style.display = allow.includes(v) ? '' : 'none';
+    });
+  }
+  modeRadios.forEach(r => r.addEventListener('change', () => { applyMode(); schedulePreview(); }));
+  applyMode();
+
+  // ----- Day-of-week presets
+  document.querySelectorAll('.preset-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const set = new Set(btn.dataset.preset.split(','));
+      document.querySelectorAll('.day-check').forEach(cb => { cb.checked = set.has(cb.value); });
+      schedulePreview();
+    });
+  });
+  document.querySelectorAll('.day-check').forEach(cb => cb.addEventListener('change', schedulePreview));
+
+  // ----- Time slot add/remove
+  const slotsRoot = document.getElementById('timeSlots');
+  document.getElementById('addSlot').addEventListener('click', () => {
+    const wrap = document.createElement('div');
+    wrap.className = 'time-slot flex items-center gap-2';
+    wrap.innerHTML = `
+      <input type="time" name="schedule_times" value="09:00"
+             class="h-9 w-32 px-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm">
+      <button type="button" class="slot-remove h-9 w-9 inline-flex items-center justify-center rounded-md text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30">
+        <span class="material-symbols-outlined text-[18px]">remove_circle</span>
+      </button>`;
+    slotsRoot.appendChild(wrap);
+    bindSlot(wrap);
+    schedulePreview();
+  });
+  function bindSlot(wrap) {
+    wrap.querySelector('.slot-remove').addEventListener('click', () => {
+      if (document.querySelectorAll('#timeSlots .time-slot').length > 1) {
+        wrap.remove(); schedulePreview();
+      }
+    });
+    wrap.querySelector('input').addEventListener('change', schedulePreview);
+  }
+  document.querySelectorAll('#timeSlots .time-slot').forEach(bindSlot);
+
+  // Re-preview on any field change
+  document.querySelectorAll(
+    '[name="schedule_interval_minutes"], [name="schedule_cron_expr"], ' +
+    '[name="schedule_timezone"], [name="schedule_start_date"], ' +
+    '[name="schedule_end_date"], [name="schedule_pause_until"]'
+  ).forEach(el => el.addEventListener('change', schedulePreview));
+
+  document.getElementById('refreshPreview').addEventListener('click', schedulePreview);
+
+  // ----- Live preview via /admin/sources/preview
+  let previewTimer = null;
+  function schedulePreview() {
+    clearTimeout(previewTimer);
+    previewTimer = setTimeout(runPreview, 300);
+  }
+  async function runPreview() {
+    const form = document.getElementById('sourceForm');
+    const fd = new FormData(form);
+    // Only the schedule_* fields matter for the preview endpoint, but
+    // posting the whole form is harmless and saves us a manual filter.
+    try {
+      const r = await fetch("{{ url_for('abr.admin_sources_preview') }}", {
+        method: 'POST', body: fd, credentials: 'same-origin'
+      });
+      const j = await r.json();
+      const list = document.getElementById('previewList');
+      const errs = document.getElementById('previewErrors');
+      const label = document.getElementById('previewLabel');
+      list.innerHTML = '';
+      if (j.ok) {
+        errs.classList.add('hidden'); errs.textContent = '';
+        label.textContent = j.label || '';
+        if (!j.fires || j.fires.length === 0) {
+          list.innerHTML = '<li class="text-zinc-400">(no upcoming fires within search window)</li>';
+        } else {
+          for (const f of j.fires) {
+            const li = document.createElement('li');
+            li.textContent = f;
+            list.appendChild(li);
+          }
+        }
+      } else {
+        label.textContent = '';
+        list.innerHTML = '<li class="text-zinc-400">(see errors below)</li>';
+        errs.classList.remove('hidden');
+        errs.textContent = (j.errors || ['unknown error']).join(' · ');
+      }
+    } catch (exc) {
+      console.error(exc);
+    }
+  }
+  // Kick off an initial preview after the page mounts.
+  runPreview();
+</script>
+{% endblock %}

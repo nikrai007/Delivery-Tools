@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+{% block title %}Manage users · {{ platform_name }}{% endblock %}
+{% block page_title %}Manage users{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+  {# ─── Users table ──────────────────────────────────────────── #}
+  <section class="lg:col-span-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm overflow-hidden">
+    <div class="p-5 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
+      <div>
+        <h2 class="text-sm font-semibold">Users ({{ users|length }})</h2>
+        <p class="text-xs text-zinc-500 mt-0.5">{{ admin_count }} active admin{{ '' if admin_count == 1 else 's' }}</p>
+      </div>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-left text-sm">
+        <thead class="bg-zinc-50 dark:bg-zinc-800/50 text-zinc-500 border-b border-zinc-200 dark:border-zinc-800">
+          <tr>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">User</th>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">Email</th>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">Role</th>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">Active</th>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">Created</th>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">Last login</th>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px] text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-zinc-100 dark:divide-zinc-800">
+          {% for u in users %}
+            <tr>
+              <td class="px-5 py-3">
+                <div class="flex items-center gap-2">
+                  <div class="h-8 w-8 rounded-full bg-brand-600 text-white flex items-center justify-center text-xs font-semibold shrink-0">
+                    {{ u.username[:1]|upper }}
+                  </div>
+                  <span class="font-medium">{{ u.username }}</span>
+                  {% if u.id == current_user.id %}<span class="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-brand-50 text-brand-700 dark:bg-brand-900/40 dark:text-brand-300 ml-1">you</span>{% endif %}
+                </div>
+              </td>
+              <td class="px-5 py-3 text-zinc-500">{{ u.email or '—' }}</td>
+              <td class="px-5 py-3">
+                {% if u.role == 'admin' %}
+                  <span class="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-md bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 font-semibold">admin</span>
+                {% else %}
+                  <span class="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-md bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300 font-semibold">user</span>
+                {% endif %}
+              </td>
+              <td class="px-5 py-3">
+                {% if u.is_active %}
+                  <span class="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-300">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> active
+                  </span>
+                {% else %}
+                  <span class="inline-flex items-center gap-1 text-[11px] font-medium text-zinc-500">
+                    <span class="w-1.5 h-1.5 rounded-full bg-zinc-400"></span> inactive
+                  </span>
+                {% endif %}
+              </td>
+              <td class="px-5 py-3 text-xs text-zinc-500 tabular-nums">{{ u.created_at[:10] }}</td>
+              <td class="px-5 py-3 text-xs text-zinc-500 tabular-nums">{{ u.last_login_at[:16].replace('T',' ') if u.last_login_at else '—' }}</td>
+              <td class="px-5 py-3 text-right">
+                <div class="inline-flex items-center gap-3 text-xs font-semibold">
+                  <button type="button" class="text-brand-600 hover:text-brand-700" data-open="edit-{{ u.id }}">edit</button>
+                  <button type="button" class="text-amber-600 hover:text-amber-700" data-open="reset-{{ u.id }}">reset pw</button>
+                  {% if u.id != current_user.id and not (u.role == 'admin' and admin_count <= 1) %}
+                    <form method="post" action="{{ url_for('abr.admin_users_delete', uid=u.id) }}"
+                          onsubmit="return confirm('Delete user {{ u.username }}? This cannot be undone.')" class="inline">
+                      <button type="submit" class="text-rose-600 hover:text-rose-700">delete</button>
+                    </form>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  {# ─── Create new user ──────────────────────────────────────── #}
+  <aside class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm p-5">
+    <h3 class="text-sm font-semibold mb-4">Create a new user</h3>
+    <form method="post" action="{{ url_for('abr.admin_users_create') }}" class="space-y-3 text-sm">
+      <div class="space-y-1.5">
+        <label class="text-[13px] font-medium text-zinc-700 dark:text-zinc-300">Username</label>
+        <input name="username" type="text" required minlength="3" maxlength="32" pattern="[A-Za-z0-9._-]+"
+               class="w-full h-9 px-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500/30">
+      </div>
+      <div class="space-y-1.5">
+        <label class="text-[13px] font-medium text-zinc-700 dark:text-zinc-300">Email <span class="text-zinc-400 font-normal">(optional)</span></label>
+        <input name="email" type="email"
+               class="w-full h-9 px-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500/30">
+      </div>
+      <div class="space-y-1.5">
+        <label class="text-[13px] font-medium text-zinc-700 dark:text-zinc-300">Initial password</label>
+        <input name="password" type="text" required minlength="8" autocomplete="new-password"
+               class="w-full h-9 px-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg font-mono focus:outline-none focus:ring-2 focus:ring-brand-500/30">
+      </div>
+      <div class="space-y-1.5">
+        <label class="text-[13px] font-medium text-zinc-700 dark:text-zinc-300">Role</label>
+        <select name="role" class="w-full h-9 px-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg">
+          <option value="user">user</option>
+          <option value="admin">admin</option>
+        </select>
+      </div>
+      <button type="submit" class="w-full h-9 bg-brand-600 hover:bg-brand-700 text-white font-medium rounded-lg shadow-sm">
+        Create user
+      </button>
+    </form>
+  </aside>
+</div>
+
+{# ─── Modal overlays (hoisted out of the table so showModal() is reliable) ─── #}
+{% for u in users %}
+  <dialog id="edit-{{ u.id }}" class="bg-transparent p-0 backdrop:bg-zinc-900/50 backdrop:backdrop-blur-sm max-w-md w-full rounded-xl">
+    <form method="post" action="{{ url_for('abr.admin_users_edit', uid=u.id) }}"
+          class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-5 space-y-4 text-sm shadow-lg">
+      <div class="flex items-center justify-between">
+        <h3 class="text-base font-semibold">Edit user · {{ u.username }}</h3>
+        <button type="button" data-close="edit-{{ u.id }}" class="p-1 rounded text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800">
+          <span class="material-symbols-outlined text-[18px]">close</span>
+        </button>
+      </div>
+      <div class="space-y-1.5">
+        <label class="text-[13px] font-medium text-zinc-700 dark:text-zinc-300">Email</label>
+        <input name="email" type="email" value="{{ u.email or '' }}"
+               class="w-full h-9 px-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500/30">
+      </div>
+      <div class="space-y-1.5">
+        <label class="text-[13px] font-medium text-zinc-700 dark:text-zinc-300">Role</label>
+        <select name="role" class="w-full h-9 px-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg">
+          <option value="user"  {% if u.role == 'user' %}selected{% endif %}>user</option>
+          <option value="admin" {% if u.role == 'admin' %}selected{% endif %}>admin</option>
+        </select>
+      </div>
+      <label class="flex items-center gap-2">
+        <input type="checkbox" name="is_active" {% if u.is_active %}checked{% endif %} class="rounded border-zinc-300 dark:border-zinc-700 text-brand-600 focus:ring-brand-500">
+        <span>Active (account can sign in)</span>
+      </label>
+      <div class="flex justify-end gap-2 pt-1">
+        <button type="button" data-close="edit-{{ u.id }}"
+                class="h-9 px-3 rounded-lg border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800">Cancel</button>
+        <button type="submit" class="h-9 px-3 rounded-lg bg-brand-600 hover:bg-brand-700 text-white font-medium">Save changes</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="reset-{{ u.id }}" class="bg-transparent p-0 backdrop:bg-zinc-900/50 backdrop:backdrop-blur-sm max-w-md w-full rounded-xl">
+    <form method="post" action="{{ url_for('abr.admin_users_reset', uid=u.id) }}"
+          class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-5 space-y-4 text-sm shadow-lg">
+      <div class="flex items-center justify-between">
+        <h3 class="text-base font-semibold">Reset password · {{ u.username }}</h3>
+        <button type="button" data-close="reset-{{ u.id }}" class="p-1 rounded text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800">
+          <span class="material-symbols-outlined text-[18px]">close</span>
+        </button>
+      </div>
+      <p class="text-xs text-zinc-500">Set a new password for this user. Hand it over via a secure channel; it won't be emailed.</p>
+      <div class="space-y-1.5">
+        <label class="text-[13px] font-medium text-zinc-700 dark:text-zinc-300">New password</label>
+        <input name="new_password" type="text" required minlength="8" autocomplete="new-password"
+               class="w-full h-9 px-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg font-mono focus:outline-none focus:ring-2 focus:ring-brand-500/30">
+        <p class="text-[11px] text-zinc-500">Minimum 8 characters.</p>
+      </div>
+      <div class="flex justify-end gap-2 pt-1">
+        <button type="button" data-close="reset-{{ u.id }}"
+                class="h-9 px-3 rounded-lg border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800">Cancel</button>
+        <button type="submit" class="h-9 px-3 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-medium">Set password</button>
+      </div>
+    </form>
+  </dialog>
+{% endfor %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Single event-delegation handler — more robust than inline onclicks.
+  document.addEventListener('click', (e) => {
+    const openId  = e.target.closest('[data-open]')?.dataset.open;
+    const closeId = e.target.closest('[data-close]')?.dataset.close;
+    if (openId) {
+      const d = document.getElementById(openId);
+      if (d && typeof d.showModal === 'function') d.showModal();
+    } else if (closeId) {
+      const d = document.getElementById(closeId);
+      if (d && d.open) d.close();
+    }
+  });
+  // Click on the backdrop (outside the form) also closes the dialog.
+  document.querySelectorAll('dialog').forEach(d => {
+    d.addEventListener('click', (e) => { if (e.target === d) d.close(); });
+  });
+</script>
+{% endblock %}

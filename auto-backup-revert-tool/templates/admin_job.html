@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}Job #{{ job.id }} · {{ platform_name }}{% endblock %}
+{% block page_title %}Job #{{ job.id }} · {{ user.username if user else '—' }}{% endblock %}
+
+{% block content %}
+<section class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm p-5">
+  <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-sm">
+    <div>
+      <dt class="text-zinc-500 text-xs uppercase tracking-wider">Submitted</dt>
+      <dd class="mt-0.5">{{ job.created_at[:10] }} <span class="font-mono text-xs text-zinc-500">{{ job.created_at[11:19] }}</span> UTC</dd>
+    </div>
+    <div>
+      <dt class="text-zinc-500 text-xs uppercase tracking-wider">User</dt>
+      <dd class="mt-0.5">{{ user.username if user else '—' }} <span class="text-zinc-500">({{ user.role if user else '' }})</span></dd>
+    </div>
+    <div class="sm:col-span-2">
+      <dt class="text-zinc-500 text-xs uppercase tracking-wider">Input</dt>
+      <dd class="mt-0.5"><code class="font-mono text-xs bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded break-all">{{ job.input_name }}</code></dd>
+    </div>
+    <div>
+      <dt class="text-zinc-500 text-xs uppercase tracking-wider">Input type</dt>
+      <dd class="mt-0.5">{{ job.input_type }}</dd>
+    </div>
+    <div>
+      <dt class="text-zinc-500 text-xs uppercase tracking-wider">Size</dt>
+      <dd class="mt-0.5 tabular-nums">{{ (job.input_size_bytes or 0) // 1024 }} KB</dd>
+    </div>
+    <div>
+      <dt class="text-zinc-500 text-xs uppercase tracking-wider">Status</dt>
+      <dd class="mt-0.5">{% set j = job %}{% include "_status_badge.html" %}</dd>
+    </div>
+    <div>
+      <dt class="text-zinc-500 text-xs uppercase tracking-wider">IP</dt>
+      <dd class="mt-0.5 font-mono text-xs">{{ job.ip_address or '—' }}</dd>
+    </div>
+    <div>
+      <dt class="text-zinc-500 text-xs uppercase tracking-wider">Warnings</dt>
+      <dd class="mt-0.5 tabular-nums">{{ job.warning_count }}</dd>
+    </div>
+    {% if job.error_message %}
+      <div class="sm:col-span-2">
+        <dt class="text-zinc-500 text-xs uppercase tracking-wider">Error</dt>
+        <dd class="mt-0.5 text-rose-600 dark:text-rose-400">{{ job.error_message }}</dd>
+      </div>
+    {% endif %}
+  </dl>
+</section>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+  <section class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm overflow-hidden">
+    <div class="p-5 border-b border-zinc-200 dark:border-zinc-800">
+      <h2 class="text-sm font-semibold">Files scanned ({{ files|length }})</h2>
+    </div>
+    <div class="max-h-[50vh] overflow-auto divide-y divide-zinc-100 dark:divide-zinc-800">
+      {% for f in files %}
+        <div class="px-5 py-2.5 flex items-center justify-between gap-3 hover:bg-zinc-50/60 dark:hover:bg-zinc-800/30 transition-colors">
+          <span class="font-mono text-[12px] truncate text-zinc-700 dark:text-zinc-300" title="{{ f.path }}">{{ f.path }}</span>
+          <span class="shrink-0 text-[11px] tabular-nums font-medium
+                       {% if f.deletes %}text-emerald-700 bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-300
+                       {% else %}text-zinc-500 bg-zinc-100 dark:bg-zinc-800 dark:text-zinc-400{% endif %}
+                       px-2 py-0.5 rounded-md">
+            {{ f.deletes }} DEL
+          </span>
+        </div>
+      {% else %}
+        <div class="px-5 py-8 text-sm text-zinc-500">No file info recorded.</div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm overflow-hidden">
+    <div class="p-5 border-b border-zinc-200 dark:border-zinc-800">
+      <h2 class="text-sm font-semibold">Downloads ({{ downloads|length }})</h2>
+    </div>
+    <div class="max-h-[50vh] overflow-auto divide-y divide-zinc-100 dark:divide-zinc-800">
+      {% for d in downloads %}
+        <div class="px-5 py-3">
+          <div class="font-mono text-[12px] text-zinc-800 dark:text-zinc-200 break-all">{{ d.filename }}</div>
+          <div class="text-[11px] text-zinc-500 mt-0.5">{{ d.downloaded_at[:19].replace('T',' ') }} UTC · {{ d.ip_address or '—' }}</div>
+        </div>
+      {% else %}
+        <div class="px-5 py-8 text-sm text-zinc-500">No downloads recorded.</div>
+      {% endfor %}
+    </div>
+  </section>
+</div>
+
+{% if job.status == 'generated' %}
+  <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm p-5 space-y-3">
+    <div class="flex items-start justify-between gap-3">
+      <div>
+        <h3 class="text-sm font-semibold">Artefacts</h3>
+        <p class="text-xs text-zinc-500 mt-0.5">
+          {{ job.delete_count }} DELETEs · {{ job.unique_tables }} tables · {{ job.alters_count or 0 }} ALTERs · {{ job.procedures_count or 0 }} stored-code defs
+        </p>
+      </div>
+    </div>
+    <div class="flex flex-wrap gap-2">
+      <a href="{{ url_for('abr.download', job_id=job.id, kind='delete') }}"
+         class="inline-flex items-center gap-2 h-9 px-3 rounded-lg border border-zinc-300 dark:border-zinc-700 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+        <span class="material-symbols-outlined text-[16px]">description</span>
+        delete.sql
+      </a>
+      <a href="{{ url_for('abr.download', job_id=job.id, kind='backup') }}"
+         class="inline-flex items-center gap-2 h-9 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium shadow-sm transition-colors">
+        <span class="material-symbols-outlined text-[16px]">download</span>
+        BACKUP.sql
+      </a>
+      <a href="{{ url_for('abr.download', job_id=job.id, kind='revert') }}"
+         class="inline-flex items-center gap-2 h-9 px-3 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium shadow-sm transition-colors">
+        <span class="material-symbols-outlined text-[16px]">download</span>
+        REVERT.sql
+      </a>
+      {% if 'cleanup_sql_file' in job.keys() and job.cleanup_sql_file %}
+        <a href="{{ url_for('abr.download', job_id=job.id, kind='cleanup') }}"
+           class="inline-flex items-center gap-2 h-9 px-3 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-sm font-medium shadow-sm transition-colors">
+          <span class="material-symbols-outlined text-[16px]">delete_forever</span>
+          CLEANUP.sql
+        </a>
+      {% endif %}
+      {% if job.alters_sql_file %}
+        <a href="{{ url_for('abr.download', job_id=job.id, kind='alters') }}"
+           class="inline-flex items-center gap-2 h-9 px-3 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-sm font-medium shadow-sm transition-colors">
+          <span class="material-symbols-outlined text-[16px]">build</span>
+          ALTERS.sql
+        </a>
+      {% endif %}
+      {% if job.procedures_file %}
+        <a href="{{ url_for('abr.download', job_id=job.id, kind='procedures') }}"
+           class="inline-flex items-center gap-2 h-9 px-3 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium shadow-sm transition-colors">
+          <span class="material-symbols-outlined text-[16px]">functions</span>
+          PROCEDURES.txt
+        </a>
+      {% endif %}
+    </div>
+  </div>
+{% endif %}
+{% endblock %}

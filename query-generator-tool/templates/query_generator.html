@@ -1,0 +1,198 @@
+{% extends "tool_base.html" %}
+{% block title %}Query Generator · {{ platform_name }}{% endblock %}
+{% block tool_icon %}database{% endblock %}
+{% block tool_title %}Query Generator{% endblock %}
+{% block tool_subtitle %}Oracle / SQL · large payload{% endblock %}
+{% block tool_footer %}Query Generator · Oracle / SQL{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+  {# ── Left: inputs ─────────────────────────────────────────────────────── #}
+  <div class="glass-card rounded-2xl p-5 sm:p-6 flex flex-col gap-4">
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div class="flex flex-col gap-1.5">
+        <label for="qTable" class="text-[11px] font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400 ml-1">Target Table</label>
+        <input id="qTable" type="text" spellcheck="false" autocomplete="off" class="qf">
+      </div>
+      <div class="flex flex-col gap-1.5">
+        <label for="qColumn" class="text-[11px] font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400 ml-1">Target Column</label>
+        <input id="qColumn" type="text" spellcheck="false" autocomplete="off" class="qf">
+      </div>
+      <div class="flex flex-col gap-1.5">
+        <label for="qFilterCol" class="text-[11px] font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400 ml-1">Filter Column</label>
+        <input id="qFilterCol" type="text" spellcheck="false" autocomplete="off" class="qf">
+      </div>
+      <div class="flex flex-col gap-1.5">
+        <label for="qFilterCond" class="text-[11px] font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400 ml-1">Filter Condition</label>
+        <input id="qFilterCond" type="text" spellcheck="false" autocomplete="off" class="qf">
+      </div>
+    </div>
+    <div class="flex flex-col gap-1.5 max-w-[12rem]">
+      <label for="qChunk" class="text-[11px] font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400 ml-1">Chunk Size</label>
+      <input id="qChunk" type="number" min="1" step="1" spellcheck="false" autocomplete="off" class="qf">
+    </div>
+    <div class="flex flex-col gap-1.5 flex-1">
+      <div class="flex items-center justify-between ml-1">
+        <label for="qPayload" class="text-[11px] font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400">Raw Payload</label>
+        <span id="qPayloadLen" class="text-[11px] font-mono text-zinc-400">0 chars</span>
+      </div>
+      <textarea id="qPayload" rows="10" placeholder="Paste the raw HTML / JSON / string payload..." spellcheck="false"
+                class="w-full font-mono text-sm rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-100/60 dark:bg-zinc-800/50 px-3.5 py-3 resize-y focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 outline-none transition flex-1"></textarea>
+    </div>
+    <div class="flex items-center gap-3">
+      <button id="qGenerate" disabled
+              class="btn-sheen inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-b from-brand-500 to-brand-700 shadow-lg shadow-brand-500/25 hover:-translate-y-0.5 transition-all active:scale-[0.98] disabled:opacity-50 disabled:translate-y-0 disabled:cursor-default">
+        <span class="material-symbols-outlined text-[18px]">bolt</span> Generate Queries
+      </button>
+      <span id="qHint" class="text-[11px] font-mono text-zinc-400">Enter a payload to enable</span>
+    </div>
+  </div>
+
+  {# ── Right: output ────────────────────────────────────────────────────── #}
+  <div class="glass-card rounded-2xl p-5 sm:p-6 flex flex-col gap-3 min-h-[420px]">
+    <div class="flex items-center gap-1 flex-wrap">
+      <button id="sub-standard" data-out="standard"
+              class="qsub px-3 py-1.5 rounded-lg text-xs font-semibold border-b-2 border-brand-500 text-brand-600 dark:text-brand-300">Standard SQL</button>
+      <button id="sub-plsql" data-out="plsql"
+              class="qsub px-3 py-1.5 rounded-lg text-xs font-semibold border-b-2 border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100">Oracle PL/SQL (Chunked)</button>
+      <span class="flex-1"></span>
+      <span id="qReadout" class="text-[11px] font-mono text-zinc-400"></span>
+      <button id="qCopy" title="Copy the visible output"
+              class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-brand-600 dark:text-brand-300 hover:bg-brand-500/10 transition-colors">
+        <span class="material-symbols-outlined text-[16px]">content_copy</span> Copy
+      </button>
+    </div>
+    <textarea id="qOutStandard" readonly placeholder="Standard SQL will appear here..."
+              class="w-full font-mono text-[13px] rounded-xl border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900/70 px-3.5 py-3 resize-none outline-none flex-1 min-h-[320px]" style="tab-size:4;"></textarea>
+    <textarea id="qOutPlsql" readonly placeholder="Oracle PL/SQL will appear here..." style="display:none; tab-size:4;"
+              class="w-full font-mono text-[13px] rounded-xl border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900/70 px-3.5 py-3 resize-none outline-none flex-1 min-h-[320px]"></textarea>
+  </div>
+</div>
+{% endblock %}
+
+{% block head_extra %}
+<style>
+  .qf { width:100%; font-family:"JetBrains Mono",ui-monospace,Consolas,monospace; font-size:13px;
+        border-radius:.75rem; border:1px solid; padding:.55rem .7rem; outline:none; transition:.12s; }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  "use strict";
+  const API = "{{ url_for('qgen.api') }}";
+  const $ = (id) => document.getElementById(id);
+  const QG_DEFAULTS = { table:"designer", column:"designconfig", filterCol:"designerid", filterCond:"= 4", chunk:3000 };
+  const CFG_KEY = "qgen-config";
+  const qg = {
+    table:$("qTable"), column:$("qColumn"), filterCol:$("qFilterCol"), filterCond:$("qFilterCond"),
+    chunk:$("qChunk"), payload:$("qPayload"), payloadLen:$("qPayloadLen"),
+    generate:$("qGenerate"), hint:$("qHint"), readout:$("qReadout"), copy:$("qCopy"),
+    outStandard:$("qOutStandard"), outPlsql:$("qOutPlsql"),
+    subStandard:$("sub-standard"), subPlsql:$("sub-plsql"),
+  };
+
+  // Tailwind-ish class for the .qf inputs (border/bg flip with theme via utility classes)
+  [qg.table, qg.column, qg.filterCol, qg.filterCond, qg.chunk].forEach((el) => {
+    el.classList.add("border-zinc-200","dark:border-zinc-700","bg-zinc-100/60","dark:bg-zinc-800/50",
+                     "text-zinc-900","dark:text-zinc-100","focus:ring-2","focus:ring-brand-500/40","focus:border-brand-500");
+  });
+
+  // ── Persist the 5 config fields (NOT the payload) ──
+  function cfgLoad() {
+    let saved = {};
+    try { saved = JSON.parse(localStorage.getItem(CFG_KEY) || "{}"); } catch (e) {}
+    qg.table.value = saved.table ?? QG_DEFAULTS.table;
+    qg.column.value = saved.column ?? QG_DEFAULTS.column;
+    qg.filterCol.value = saved.filterCol ?? QG_DEFAULTS.filterCol;
+    qg.filterCond.value = saved.filterCond ?? QG_DEFAULTS.filterCond;
+    qg.chunk.value = saved.chunk ?? QG_DEFAULTS.chunk;
+  }
+  function cfgSave() {
+    try {
+      localStorage.setItem(CFG_KEY, JSON.stringify({
+        table:qg.table.value, column:qg.column.value, filterCol:qg.filterCol.value,
+        filterCond:qg.filterCond.value, chunk:qg.chunk.value,
+      }));
+    } catch (e) {}
+  }
+  [qg.table, qg.column, qg.filterCol, qg.filterCond, qg.chunk].forEach((el) => el.addEventListener("input", cfgSave));
+  cfgLoad();
+
+  // ── Live payload length + enable/disable generate ──
+  function sync() {
+    const len = qg.payload.value.length;
+    qg.payloadLen.textContent = len.toLocaleString() + " chars";
+    qg.generate.disabled = len === 0;
+    if (len === 0) qg.hint.textContent = "Enter a payload to enable";
+    else if (qg.hint.textContent === "Enter a payload to enable") qg.hint.textContent = "";
+  }
+  qg.payload.addEventListener("input", sync);
+  sync();
+
+  // ── Output sub-tab switching ──
+  let activeOut = "standard";
+  function showOut(which) {
+    activeOut = which;
+    qg.subStandard.classList.toggle("border-brand-500", which === "standard");
+    qg.subStandard.classList.toggle("text-brand-600", which === "standard");
+    qg.subStandard.classList.toggle("dark:text-brand-300", which === "standard");
+    qg.subStandard.classList.toggle("border-transparent", which !== "standard");
+    qg.subStandard.classList.toggle("text-zinc-500", which !== "standard");
+    qg.subPlsql.classList.toggle("border-brand-500", which === "plsql");
+    qg.subPlsql.classList.toggle("text-brand-600", which === "plsql");
+    qg.subPlsql.classList.toggle("dark:text-brand-300", which === "plsql");
+    qg.subPlsql.classList.toggle("border-transparent", which !== "plsql");
+    qg.subPlsql.classList.toggle("text-zinc-500", which !== "plsql");
+    qg.outStandard.style.display = which === "standard" ? "" : "none";
+    qg.outPlsql.style.display = which === "plsql" ? "" : "none";
+  }
+  qg.subStandard.addEventListener("click", () => showOut("standard"));
+  qg.subPlsql.addEventListener("click", () => showOut("plsql"));
+
+  // ── Generate ──
+  qg.generate.addEventListener("click", async () => {
+    const raw = qg.payload.value;
+    if (!raw) return;
+    qg.generate.disabled = true;
+    qg.hint.textContent = "Generating...";
+    let res;
+    try {
+      const r = await fetch(API, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          raw: raw, table: qg.table.value, column: qg.column.value,
+          filter_column: qg.filterCol.value, filter_condition: qg.filterCond.value, chunk_size: qg.chunk.value,
+        }),
+      });
+      res = r.ok ? await r.json() : { ok: false, error: "Request failed (" + r.status + ")" };
+    } catch (e) { res = { ok: false, error: String(e) }; }
+    qg.generate.disabled = qg.payload.value.length === 0;
+    if (res && res.ok) {
+      const v = res.value;
+      qg.outStandard.value = v.standard_sql;
+      qg.outPlsql.value = v.plsql;
+      qg.readout.textContent =
+        v.chunk_count + (v.chunk_count === 1 ? " chunk" : " chunks") +
+        " · " + v.raw_length.toLocaleString() + " chars · size " + v.chunk_size;
+      qg.hint.textContent = "";
+      window.toast("Queries generated");
+    } else {
+      const msg = (res && res.error) || "Unknown error";
+      qg.hint.textContent = msg;
+      window.toast(msg, true);
+    }
+  });
+
+  // ── Copy the visible output ──
+  qg.copy.addEventListener("click", async () => {
+    const el = activeOut === "plsql" ? qg.outPlsql : qg.outStandard;
+    const text = el.value;
+    if (!text) { window.toast("Nothing to copy", true); return; }
+    const label = activeOut === "plsql" ? "Oracle PL/SQL" : "Standard SQL";
+    const ok = await window.copyToClipboard(text);
+    window.toast(ok ? "Copied " + label + " to clipboard" : "Copy failed — select & press Ctrl+C", !ok);
+  });
+</script>
+{% endblock %}

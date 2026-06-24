@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en" class="h-full">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{% block title %}{{ platform_name }}{% endblock %}</title>
+
+    {# Theme bootstrap — shared with the rest of the platform #}
+    <script>
+      (function () {
+        var t = localStorage.getItem("theme");
+        if (!t) t = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        if (t === "dark") document.documentElement.classList.add("dark");
+      })();
+    </script>
+
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script>
+      tailwind.config = {
+        darkMode: "class",
+        theme: { extend: {
+          colors: { brand: {
+            50:"#eef2ff",100:"#e0e7ff",200:"#c7d2fe",300:"#a5b4fc",400:"#818cf8",
+            500:"#6366f1",600:"#4f46e5",700:"#4338ca",800:"#3730a3",900:"#312e81",950:"#1e1b4b" } },
+          borderRadius: { "lg":"0.625rem","xl":"0.875rem","2xl":"1rem" },
+          fontFamily: {
+            sans:["Inter","system-ui","-apple-system","Segoe UI","Roboto","sans-serif"],
+            body:["Inter","system-ui","sans-serif"],
+            mono:["JetBrains Mono","ui-monospace","SFMono-Regular","Menlo","Consolas","monospace"] }
+        } }
+      };
+    </script>
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    {% block head_extra %}{% endblock %}
+  </head>
+
+  <body class="h-full min-h-screen bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100 antialiased font-body">
+
+    {# ── Sticky tool top bar ─────────────────────────────────────────────── #}
+    <header class="sticky top-0 z-40 border-b border-zinc-200/70 dark:border-white/5
+                   bg-white/75 dark:bg-zinc-950/70 backdrop-blur-xl">
+      <div class="mx-auto max-w-6xl px-4 md:px-6 h-16 flex items-center justify-between gap-3">
+        <div class="flex items-center gap-3 min-w-0">
+          <a href="{{ url_for('landing.index') }}" title="Back to all tools" class="flex items-center gap-2.5 group shrink-0">
+            <img src="{{ url_for('static', filename='logo.svg') }}" alt="" class="h-9 w-9 rounded-xl shadow-md shadow-brand-500/30 group-hover:scale-105 transition-transform">
+            <span class="hidden sm:block text-sm font-semibold tracking-tight">{{ platform_name }}</span>
+          </a>
+          <span class="hidden md:block h-5 w-px bg-zinc-300 dark:bg-zinc-700"></span>
+          <div class="flex items-center gap-2.5 min-w-0">
+            <div class="h-8 w-8 rounded-lg bg-brand-500/15 dark:bg-brand-500/20 ring-1 ring-brand-500/20
+                        flex items-center justify-center text-brand-600 dark:text-brand-300 shrink-0">
+              <span class="material-symbols-outlined text-[20px]">{% block tool_icon %}build{% endblock %}</span>
+            </div>
+            <div class="leading-tight min-w-0">
+              <h1 class="text-sm font-semibold tracking-tight truncate">{% block tool_title %}Tool{% endblock %}</h1>
+              <p class="text-[11px] font-mono text-zinc-500 dark:text-zinc-400 truncate">{% block tool_subtitle %}{% endblock %}</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-1.5 shrink-0">
+          <a href="{{ url_for('landing.index') }}"
+             class="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium
+                    text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+            <span class="material-symbols-outlined text-[18px]">apps</span> All tools
+          </a>
+          <button id="themeToggle" title="Toggle theme" aria-label="Toggle theme"
+                  class="p-2 rounded-lg text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+            <span class="material-symbols-outlined text-[20px] dark:hidden">dark_mode</span>
+            <span class="material-symbols-outlined text-[20px] hidden dark:inline">light_mode</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="mx-auto max-w-6xl px-4 md:px-6 py-6">
+      {% block content %}{% endblock %}
+
+      <footer class="mt-6 flex flex-wrap items-center justify-between gap-2 px-1 text-[11px] text-zinc-400 dark:text-zinc-500">
+        <span>{% block tool_footer %}{% endblock %}</span>
+        <span class="font-mono text-brand-600/85 dark:text-brand-300/85">Nikhil Kumar · SDG: EC 2845</span>
+      </footer>
+    </main>
+
+    {# ── Shared toast ────────────────────────────────────────────────────── #}
+    <div id="toast"
+         class="fixed bottom-6 left-1/2 -translate-x-1/2 translate-y-2 opacity-0 pointer-events-none
+                flex items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold
+                bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 shadow-lg transition-all duration-200 z-50">
+      <span id="toastText">Done</span>
+    </div>
+
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+    <script>
+      // Shared helpers for tool pages: toast + robust clipboard copy.
+      (function () {
+        var toastEl = document.getElementById("toast");
+        var toastText = document.getElementById("toastText");
+        var timer = null;
+        window.toast = function (text, isErr) {
+          toastText.textContent = text;
+          toastEl.classList.toggle("!bg-rose-600", !!isErr);
+          toastEl.classList.toggle("!text-white", !!isErr);
+          toastEl.classList.add("opacity-100", "translate-y-0");
+          toastEl.classList.remove("translate-y-2");
+          clearTimeout(timer);
+          timer = setTimeout(function () {
+            toastEl.classList.remove("opacity-100", "translate-y-0");
+            toastEl.classList.add("translate-y-2");
+          }, 1800);
+        };
+        window.copyToClipboard = async function (text) {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            try { await navigator.clipboard.writeText(text); return true; } catch (e) {}
+          }
+          try {
+            var ta = document.createElement("textarea");
+            ta.value = text; ta.setAttribute("readonly", "");
+            ta.style.position = "fixed"; ta.style.top = "-1000px"; ta.style.opacity = "0";
+            document.body.appendChild(ta); ta.focus(); ta.select();
+            ta.setSelectionRange(0, text.length);
+            var ok = document.execCommand("copy");
+            document.body.removeChild(ta);
+            return ok;
+          } catch (e) { return false; }
+        };
+      })();
+    </script>
+    {% block scripts %}{% endblock %}
+  </body>
+</html>

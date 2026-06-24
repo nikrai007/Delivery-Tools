@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% set editing = team is not none %}
+{% block title %}{{ 'Edit' if editing else 'New' }} Team · {{ platform_name }}{% endblock %}
+{% block page_title %}{{ 'Edit team' if editing else 'Create team' }}{% endblock %}
+
+{% block content %}
+<div class="max-w-lg">
+  <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm p-6 space-y-5">
+    <div class="flex items-center gap-3">
+      <span class="material-symbols-outlined text-brand-500 text-[28px]">group_work</span>
+      <div>
+        <h2 class="text-base font-semibold">{{ 'Edit' if editing else 'Create' }} team</h2>
+        {% if editing %}<p class="text-xs text-zinc-500 mt-0.5">ID #{{ team.id }} · created {{ team.created_at[:10] }}</p>{% endif %}
+      </div>
+    </div>
+
+    <form method="post" class="space-y-4 text-sm">
+      <div class="space-y-1.5">
+        <label class="text-[13px] font-medium text-zinc-700 dark:text-zinc-300" for="name">Team name</label>
+        <input id="name" name="name" type="text" required maxlength="80"
+               value="{{ team.name if editing else '' }}" autofocus
+               class="w-full h-9 px-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+      </div>
+
+      <div class="space-y-1.5">
+        <label class="text-[13px] font-medium text-zinc-700 dark:text-zinc-300" for="description">
+          Description <span class="text-zinc-400 font-normal">(optional)</span>
+        </label>
+        <textarea id="description" name="description" rows="3" maxlength="500"
+                  class="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 resize-none text-sm">{{ team.description if editing and team.description else '' }}</textarea>
+      </div>
+
+      <div class="flex items-center justify-between pt-2 border-t border-zinc-100 dark:border-zinc-800">
+        <a href="{{ url_for('teams.admin_teams') }}"
+           class="h-9 px-4 inline-flex items-center rounded-lg border border-zinc-300 dark:border-zinc-700 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors">
+          Cancel
+        </a>
+        <button type="submit"
+                class="h-9 px-5 bg-brand-600 hover:bg-brand-700 text-white font-medium rounded-lg shadow-sm transition-colors">
+          {{ 'Save changes' if editing else 'Create team' }}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

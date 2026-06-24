@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="en" class="h-full">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{% block title %}{{ platform_name }}{% endblock %}</title>
+
+    <script>
+      (function () {
+        var t = localStorage.getItem("theme");
+        if (!t) t = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        if (t === "dark") document.documentElement.classList.add("dark");
+      })();
+    </script>
+
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script>
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              brand: {
+                50:  "#eef2ff",
+                100: "#e0e7ff",
+                200: "#c7d2fe",
+                300: "#a5b4fc",
+                400: "#818cf8",
+                500: "#6366f1",
+                600: "#4f46e5",
+                700: "#4338ca",
+                800: "#3730a3",
+                900: "#312e81",
+                950: "#1e1b4b"
+              }
+            },
+            borderRadius: {
+              "lg": "0.625rem",
+              "xl": "0.875rem",
+              "2xl": "1rem"
+            },
+            fontFamily: {
+              sans:     ["Inter", "system-ui", "-apple-system", "Segoe UI", "Roboto", "sans-serif"],
+              body:     ["Inter", "system-ui", "sans-serif"],
+              headline: ["Inter", "system-ui", "sans-serif"],
+              display:  ["Inter", "system-ui", "sans-serif"],
+              label:    ["Inter", "system-ui", "sans-serif"],
+              mono:     ["JetBrains Mono", "ui-monospace", "SFMono-Regular", "Menlo", "Consolas", "monospace"]
+            }
+          }
+        }
+      };
+    </script>
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    {% block head_extra %}{% endblock %}
+  </head>
+
+  <body class="h-full min-h-screen bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100 antialiased font-body">
+
+  {% if current_user.is_authenticated %}
+    {# ---------- Authenticated shell: fixed left sidebar + sticky topbar + main ---------- #}
+    <aside id="sidebar"
+           class="flex flex-col fixed left-0 top-0 h-screen z-40 w-64
+                  -translate-x-full lg:translate-x-0 transition-transform duration-200
+                  border-r border-zinc-200 dark:border-zinc-800
+                  bg-white dark:bg-zinc-900 text-sm">
+      <a href="{{ url_for('landing.index') }}" title="Back to all tools"
+         class="block px-6 py-5 hover:bg-zinc-50 dark:hover:bg-zinc-800/40 transition-colors">
+        <div class="flex items-center gap-3">
+          <img src="{{ url_for('static', filename='logo.svg') }}" alt="" class="h-10 w-10 rounded-xl shadow-md shadow-brand-200/60 dark:shadow-brand-900/40">
+          <div class="leading-tight">
+            <h2 class="text-base font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">{{ platform_name }}</h2>
+            <p class="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold">{{ app_name }}</p>
+          </div>
+        </div>
+      </a>
+
+      {% set item = 'flex items-center gap-3 px-3 py-2 rounded-lg transition-colors duration-150' %}
+      {% set idle = 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800' %}
+      {% set active = 'text-brand-600 dark:text-brand-300 bg-brand-50 dark:bg-brand-900/25 font-semibold' %}
+
+      <nav class="flex-1 px-4 space-y-1">
+        <a href="{{ url_for('landing.index') }}"
+           class="{{ item }} {{ idle }}">
+          <span class="material-symbols-outlined text-[20px]">apps</span>
+          All tools
+        </a>
+        <div class="my-2 border-t border-zinc-200 dark:border-zinc-800"></div>
+
+        {% if is_pending %}
+          {# Pending users are locked to the approval page; show a placeholder instead of tool nav #}
+          <div class="px-3 py-6 text-center space-y-2">
+            <span class="material-symbols-outlined text-amber-400 text-[32px]">pending_actions</span>
+            <p class="text-[11px] text-zinc-500 dark:text-zinc-400 leading-snug">Access is locked until your team request is approved.</p>
+          </div>
+        {% else %}
+          <a href="{{ url_for('abr.dashboard') }}"
+             class="{{ item }} {% if request.endpoint=='abr.dashboard' %}{{ active }}{% else %}{{ idle }}{% endif %}">
+            <span class="material-symbols-outlined text-[20px]">dashboard</span>
+            Dashboard
+          </a>
+          <a href="{{ url_for('abr.new_job') }}"
+             class="{{ item }} {% if request.endpoint=='abr.new_job' %}{{ active }}{% else %}{{ idle }}{% endif %}">
+            <span class="material-symbols-outlined text-[20px]">add_box</span>
+            New job
+          </a>
+          <a href="{{ url_for('abr.history') }}"
+             class="{{ item }} {% if request.endpoint=='abr.history' %}{{ active }}{% else %}{{ idle }}{% endif %}">
+            <span class="material-symbols-outlined text-[20px]">history</span>
+            History
+          </a>
+
+          {% if is_team_leader and not is_admin %}
+            <div class="pt-5 pb-1 px-3 text-[10px] uppercase tracking-wider text-zinc-500 font-semibold">My Team</div>
+            <a href="{{ url_for('teams.my_team') }}"
+               class="{{ item }} {% if request.endpoint == 'teams.my_team' %}{{ active }}{% else %}{{ idle }}{% endif %}">
+              <span class="material-symbols-outlined text-[20px]">group</span>
+              Team dashboard
+            </a>
+            <a href="{{ url_for('teams.my_team_requests') }}"
+               class="{{ item }} {% if request.endpoint == 'teams.my_team_requests' %}{{ active }}{% else %}{{ idle }}{% endif %}">
+              <span class="material-symbols-outlined text-[20px]">how_to_reg</span>
+              Join requests
+              {% if pending_team_requests > 0 %}
+                <span class="ml-auto text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-500 text-white">{{ pending_team_requests }}</span>
+              {% endif %}
+            </a>
+          {% endif %}
+
+          {% if is_admin %}
+            <div class="pt-5 pb-1 px-3 text-[10px] uppercase tracking-wider text-zinc-500 font-semibold">Admin</div>
+            <a href="{{ url_for('abr.admin_home') }}"
+               class="{{ item }} {% if request.endpoint in ('abr.admin_home','abr.admin_job') %}{{ active }}{% else %}{{ idle }}{% endif %}">
+              <span class="material-symbols-outlined text-[20px]">groups</span>
+              User activity
+            </a>
+            <a href="{{ url_for('abr.admin_users') }}"
+               class="{{ item }} {% if request.endpoint and request.endpoint.startswith('abr.admin_users') %}{{ active }}{% else %}{{ idle }}{% endif %}">
+              <span class="material-symbols-outlined text-[20px]">manage_accounts</span>
+              Manage users
+            </a>
+            <a href="{{ url_for('teams.admin_teams') }}"
+               class="{{ item }} {% if request.endpoint and request.endpoint.startswith('teams.admin') %}{{ active }}{% else %}{{ idle }}{% endif %}">
+              <span class="material-symbols-outlined text-[20px]">group_work</span>
+              Teams
+              {% if pending_team_requests > 0 %}
+                <span class="ml-auto text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-500 text-white">{{ pending_team_requests }}</span>
+              {% endif %}
+            </a>
+            <a href="{{ url_for('abr.admin_sources') }}"
+               class="{{ item }} {% if request.endpoint and request.endpoint.startswith('abr.admin_sources') %}{{ active }}{% else %}{{ idle }}{% endif %}">
+              <span class="material-symbols-outlined text-[20px]">cloud_sync</span>
+              Watched sources
+            </a>
+            <a href="{{ url_for('abr.admin_storage') }}"
+               class="{{ item }} {% if request.endpoint == 'abr.admin_storage' %}{{ active }}{% else %}{{ idle }}{% endif %}">
+              <span class="material-symbols-outlined text-[20px]">folder_managed</span>
+              Storage settings
+            </a>
+          {% endif %}
+        {% endif %}
+      </nav>
+
+      <div class="p-4 border-t border-zinc-200 dark:border-zinc-800">
+        <div class="flex items-center gap-3 px-3 py-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-xl border border-zinc-200 dark:border-zinc-800">
+          <div class="h-9 w-9 rounded-full bg-brand-600 text-white flex items-center justify-center text-sm font-semibold">
+            {{ current_user.username[:1]|upper }}
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-medium truncate">{{ current_user.username }}</p>
+            <p class="text-[11px] text-zinc-500 truncate">{{ current_user.role }}</p>
+          </div>
+          <a href="{{ url_for('auth.logout') }}"
+             title="Logout"
+             class="p-2 rounded-md text-zinc-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors">
+            <span class="material-symbols-outlined text-[18px]">logout</span>
+          </a>
+        </div>
+      </div>
+    </aside>
+
+    <div class="lg:ml-64 min-h-screen flex flex-col">
+      <header class="h-16 px-4 md:px-8 flex items-center justify-between sticky top-0 z-30
+                     bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md
+                     border-b border-zinc-200 dark:border-zinc-800 shadow-sm">
+        <div class="flex items-center gap-3">
+          <button onclick="document.getElementById('sidebar').classList.toggle('-translate-x-full')"
+                  class="lg:hidden p-2 rounded-md text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                  title="Toggle sidebar">
+            <span class="material-symbols-outlined text-[22px]">menu</span>
+          </button>
+          <h1 class="font-headline font-semibold text-lg text-zinc-900 dark:text-zinc-100">
+            {% block page_title %}{% endblock %}
+          </h1>
+        </div>
+
+        <div class="flex items-center gap-1 text-zinc-500 dark:text-zinc-400">
+          {# ── Notification bell ── #}
+          {% if current_user.is_authenticated %}
+            <div class="relative" id="notif-wrapper">
+              <button id="notif-btn"
+                      class="relative p-2 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
+                      title="Notifications" aria-expanded="false">
+                <span class="material-symbols-outlined text-[20px]">notifications</span>
+                {% if notif_count > 0 %}
+                  <span class="absolute top-1 right-1 h-4 w-4 rounded-full bg-rose-500 text-white text-[9px] font-bold flex items-center justify-center leading-none">{{ notif_count if notif_count < 10 else '9+' }}</span>
+                {% endif %}
+              </button>
+              <div id="notif-panel"
+                   class="hidden absolute right-0 top-full mt-1 w-80 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-lg z-50 overflow-hidden">
+                <div class="flex items-center justify-between px-4 py-3 border-b border-zinc-100 dark:border-zinc-800">
+                  <span class="text-xs font-semibold text-zinc-700 dark:text-zinc-300">Notifications</span>
+                  {% if notif_count > 0 %}
+                    <form method="post" action="{{ url_for('teams.mark_notifications_read') }}" class="inline">
+                      <input type="hidden" name="next" value="{{ request.path }}">
+                      <button type="submit" class="text-[11px] text-brand-600 hover:text-brand-700 font-medium">Mark all read</button>
+                    </form>
+                  {% endif %}
+                </div>
+                <ul class="max-h-72 overflow-y-auto divide-y divide-zinc-100 dark:divide-zinc-800">
+                  {% if notifications %}
+                    {% for n in notifications %}
+                      <li class="px-4 py-3 {% if not n.is_read %}bg-brand-50/60 dark:bg-brand-900/10{% endif %}">
+                        {% if n.link %}
+                          <a href="{{ n.link }}" class="block">
+                        {% endif %}
+                        <p class="text-xs text-zinc-700 dark:text-zinc-300 leading-snug">{{ n.message }}</p>
+                        <p class="text-[10px] text-zinc-400 mt-0.5">{{ n.created_at[:16].replace('T',' ') }}</p>
+                        {% if n.link %}</a>{% endif %}
+                      </li>
+                    {% endfor %}
+                  {% else %}
+                    <li class="px-4 py-6 text-center text-xs text-zinc-400">No notifications</li>
+                  {% endif %}
+                </ul>
+              </div>
+            </div>
+          {% endif %}
+
+          <button id="themeToggle"
+                  class="p-2 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
+                  title="Toggle theme">
+            <span class="material-symbols-outlined text-[20px] dark:hidden">dark_mode</span>
+            <span class="material-symbols-outlined text-[20px] hidden dark:inline">light_mode</span>
+          </button>
+        </div>
+      </header>
+
+      <main class="p-4 md:p-8 space-y-6 flex-1">
+        {% include "_flash.html" %}
+        {% block content %}{% endblock %}
+      </main>
+
+      <footer class="px-8 py-5 text-xs text-zinc-400 dark:text-zinc-500 border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-between flex-wrap gap-2">
+        <span>{{ attribution }}</span>
+        <a href="{{ url_for('landing.about') }}" class="hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors">About</a>
+      </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+
+    {# ── Session timeout warning modal ── #}
+    <div id="session-warning"
+         class="hidden fixed inset-0 z-[999] flex items-center justify-center p-4 bg-zinc-900/60 backdrop-blur-sm">
+      <div class="bg-white dark:bg-zinc-900 border border-amber-300 dark:border-amber-700 rounded-2xl shadow-2xl p-8 max-w-sm w-full text-center space-y-4">
+        <div class="flex justify-center">
+          <div class="h-14 w-14 rounded-full bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center">
+            <span class="material-symbols-outlined text-amber-600 dark:text-amber-400 text-[32px]">timer</span>
+          </div>
+        </div>
+        <div>
+          <h2 class="text-lg font-bold text-zinc-900 dark:text-zinc-50">Session expiring soon</h2>
+          <p class="text-sm text-zinc-500 mt-1">
+            You'll be logged out in <span id="session-countdown" class="font-semibold text-amber-600 dark:text-amber-400">60</span> seconds due to inactivity.
+          </p>
+        </div>
+        <button onclick="resetSessionTimer()"
+                class="w-full py-3 rounded-xl bg-gradient-to-b from-brand-500 to-brand-700 text-white font-semibold text-sm shadow-md shadow-brand-500/25 hover:-translate-y-0.5 transition-all active:scale-[0.98]">
+          Keep me signed in
+        </button>
+        <a href="{{ url_for('auth.logout') }}" class="block text-sm text-zinc-500 hover:text-rose-600 transition-colors">Sign out now</a>
+      </div>
+    </div>
+
+    <script>
+      // ── Session inactivity timeout (5 min) ──────────────────────────────
+      (function () {
+        const TIMEOUT_MS  = 5 * 60 * 1000;   // 5 minutes total
+        const WARN_MS     = 60 * 1000;        // warn 60s before logout
+        let mainTimer, warnTimer, cdInterval;
+
+        function showWarning() {
+          const el = document.getElementById('session-warning');
+          const cd = document.getElementById('session-countdown');
+          if (!el) return;
+          el.classList.remove('hidden');
+          let secs = Math.floor(WARN_MS / 1000);
+          if (cd) cd.textContent = secs;
+          cdInterval = setInterval(() => {
+            secs -= 1;
+            if (cd) cd.textContent = Math.max(secs, 0);
+          }, 1000);
+        }
+
+        function hideWarning() {
+          const el = document.getElementById('session-warning');
+          if (el) el.classList.add('hidden');
+          clearInterval(cdInterval);
+        }
+
+        window.resetSessionTimer = function () {
+          clearTimeout(mainTimer);
+          clearTimeout(warnTimer);
+          hideWarning();
+          warnTimer = setTimeout(showWarning, TIMEOUT_MS - WARN_MS);
+          mainTimer = setTimeout(() => {
+            window.location.href = '{{ url_for("auth.logout") }}?auto=1';
+          }, TIMEOUT_MS);
+        };
+
+        ['mousemove', 'keydown', 'click', 'scroll', 'touchstart', 'pointerdown'].forEach(ev => {
+          document.addEventListener(ev, window.resetSessionTimer, { passive: true });
+        });
+
+        window.resetSessionTimer();
+      })();
+
+      // ── Notification bell toggle ─────────────────────────────────────────
+      (function () {
+        const btn   = document.getElementById('notif-btn');
+        const panel = document.getElementById('notif-panel');
+        if (!btn || !panel) return;
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const open = !panel.classList.contains('hidden');
+          panel.classList.toggle('hidden', open);
+          btn.setAttribute('aria-expanded', String(!open));
+        });
+        document.addEventListener('click', () => {
+          panel.classList.add('hidden');
+          btn.setAttribute('aria-expanded', 'false');
+        });
+        panel.addEventListener('click', e => e.stopPropagation());
+      })();
+    </script>
+
+  {% else %}
+    {# ---------- Unauthenticated (login / register / forgot / reset) layout ---------- #}
+    <div class="aurora-bg">
+      <div class="aurora-blob blob-1"></div>
+      <div class="aurora-blob blob-2"></div>
+      <div class="aurora-blob blob-3"></div>
+      <div class="aurora-blob blob-4"></div>
+      <div class="absolute inset-0 noise-bg pointer-events-none"></div>
+    </div>
+    <main class="min-h-screen flex flex-col items-center justify-center p-6 relative">
+      <div class="w-full max-w-[440px]">
+        {% include "_flash.html" %}
+        {% block content_auth %}{% endblock %}
+      </div>
+      <footer class="mt-10 text-center">
+        <p class="text-[11px] text-zinc-500 dark:text-zinc-400 font-medium tracking-wide">{{ attribution }}</p>
+      </footer>
+    </main>
+  {% endif %}
+
+    {% block scripts %}{% endblock %}
+  </body>
+</html>

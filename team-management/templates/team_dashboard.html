@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}{{ team.name }} · {{ platform_name }}{% endblock %}
+{% block page_title %}{{ team.name }}{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  {# ── Header card ─────────────────────────────────────────────────── #}
+  <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm p-6 flex flex-wrap items-center justify-between gap-4">
+    <div class="flex items-center gap-4">
+      <div class="h-14 w-14 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white shadow-md shadow-brand-500/25">
+        <span class="material-symbols-outlined text-[28px]">group</span>
+      </div>
+      <div>
+        <h2 class="text-xl font-bold text-zinc-900 dark:text-zinc-50">{{ team.name }}</h2>
+        {% if team.description %}<p class="text-sm text-zinc-500 mt-0.5">{{ team.description }}</p>{% endif %}
+        <p class="text-xs text-zinc-400 mt-1">{{ members|length }} approved member{{ '' if members|length == 1 else 's' }}</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      {% if pending_count > 0 %}
+        <a href="{{ url_for('teams.my_team_requests') }}"
+           class="inline-flex items-center gap-1.5 h-9 px-4 bg-amber-100 hover:bg-amber-200 text-amber-800 dark:bg-amber-900/40 dark:hover:bg-amber-900/60 dark:text-amber-300 text-sm font-medium rounded-lg transition-colors">
+          <span class="material-symbols-outlined text-[18px]">pending_actions</span>
+          {{ pending_count }} pending request{{ '' if pending_count == 1 else 's' }}
+        </a>
+      {% endif %}
+      <a href="{{ url_for('teams.my_team_requests') }}"
+         class="inline-flex items-center gap-1.5 h-9 px-4 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-sm font-medium rounded-lg transition-colors">
+        <span class="material-symbols-outlined text-[18px]">how_to_reg</span>
+        Join requests
+      </a>
+    </div>
+  </div>
+
+  {# ── Members table ────────────────────────────────────────────────── #}
+  <section class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm overflow-hidden">
+    <div class="p-5 border-b border-zinc-200 dark:border-zinc-800">
+      <h3 class="text-sm font-semibold">Team members</h3>
+      <p class="text-xs text-zinc-500 mt-0.5">{{ members|length }} member{{ '' if members|length == 1 else 's' }}</p>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-left text-sm">
+        <thead class="bg-zinc-50 dark:bg-zinc-800/50 text-zinc-500 border-b border-zinc-200 dark:border-zinc-800">
+          <tr>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">Member</th>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">Employee code</th>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">Role</th>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">Joined</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-zinc-100 dark:divide-zinc-800">
+          {% for m in members %}
+            <tr class="hover:bg-zinc-50/60 dark:hover:bg-zinc-800/40 transition-colors">
+              <td class="px-5 py-3">
+                <div class="flex items-center gap-2.5">
+                  <div class="h-8 w-8 rounded-full {% if m['team_role'] == 'leader' %}bg-emerald-600{% else %}bg-brand-600{% endif %} text-white flex items-center justify-center text-xs font-semibold shrink-0">
+                    {{ m.username[:1]|upper }}
+                  </div>
+                  <div>
+                    <div class="font-medium">{{ m.username }}</div>
+                    {% if m.full_name %}<div class="text-[11px] text-zinc-500">{{ m.full_name }}</div>{% endif %}
+                    <div class="text-[11px] text-zinc-400">{{ m.email or '—' }}</div>
+                  </div>
+                </div>
+              </td>
+              <td class="px-5 py-3 font-mono text-xs text-zinc-500">{{ m.employee_code or '—' }}</td>
+              <td class="px-5 py-3">
+                {% if m['team_role'] == 'leader' %}
+                  <span class="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 font-semibold">leader</span>
+                {% else %}
+                  <span class="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-md bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400 font-semibold">member</span>
+                {% endif %}
+              </td>
+              <td class="px-5 py-3 text-xs text-zinc-500 tabular-nums">{{ m.created_at[:10] }}</td>
+            </tr>
+          {% else %}
+            <tr><td colspan="4" class="p-10 text-center text-sm text-zinc-500">No approved members yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+{% endblock %}

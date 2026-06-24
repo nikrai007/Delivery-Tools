@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}About · {{ platform_name }}{% endblock %}
+{% block page_title %}About{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl space-y-6">
+
+  <section class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm p-6 flex items-center gap-5">
+    <img src="{{ url_for('static', filename='logo.svg') }}" alt="" class="w-16 h-16 rounded-xl shadow-md shadow-brand-200/60 dark:shadow-brand-900/40 shrink-0">
+    <div>
+      <h2 class="text-xl font-semibold tracking-tight">{{ platform_name }}</h2>
+      <p class="text-[11px] uppercase tracking-wider text-brand-500 font-semibold mt-0.5">Platform</p>
+      <p class="text-sm text-zinc-500 mt-1">A self-hosted, multi-tool platform for safer database releases.</p>
+      <p class="text-[12px] text-zinc-400 mt-2">Version {{ version }}</p>
+    </div>
+  </section>
+
+  <section class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm p-6">
+    <p class="text-[11px] uppercase tracking-wider text-zinc-400 font-semibold mb-1">Tool</p>
+    <h3 class="text-sm font-semibold mb-3">What {{ app_name }} does</h3>
+    <p class="text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">
+      Point it at a folder, archive
+      (<code class="font-mono text-[12px] bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">.7z</code> /
+      <code class="font-mono text-[12px] bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">.zip</code>) or a single
+      <code class="font-mono text-[12px] bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">.sql</code> file. It scans every file in
+      natural-sort order, collects every <code class="font-mono text-[12px] bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">DELETE FROM …</code>
+      statement into a reviewable <code class="font-mono text-[12px] bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">delete.sql</code>,
+      then generates timestamped <code class="font-mono text-[12px] bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">BACKUP.sql</code>
+      (CREATE TABLE AS SELECT snapshots) and <code class="font-mono text-[12px] bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">REVERT.sql</code>
+      (DELETE + conditional INSERT-from-backup) you can run later if rollback is needed.
+    </p>
+  </section>
+
+  <section class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm p-6">
+    <div class="flex items-center gap-2 mb-4">
+      <span class="material-symbols-outlined text-brand-500 text-[22px]">shield_lock</span>
+      <h3 class="text-sm font-semibold">Security &amp; data storage</h3>
+    </div>
+
+    <dl class="space-y-4 text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">
+      <div>
+        <dt class="font-medium text-zinc-900 dark:text-zinc-100">User accounts &amp; passwords</dt>
+        <dd>Stored in a local <strong>SQLite</strong> database at
+          <code class="font-mono text-[12px] bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded break-all">{{ db_path }}</code>
+          (table <code class="font-mono text-[12px] bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">users</code>).
+          Passwords are <strong>never</strong> stored in plaintext — they're hashed with
+          <strong>PBKDF2-SHA256</strong> (Werkzeug <code class="font-mono text-[12px] bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">generate_password_hash</code>, per-user salt, 600k iterations).
+          You can inspect the DB with <code class="font-mono text-[12px] bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">sqlite3 data/app.db ".schema users"</code>.
+        </dd>
+      </div>
+      <div>
+        <dt class="font-medium text-zinc-900 dark:text-zinc-100">Sessions</dt>
+        <dd>Signed Flask cookies — signature is keyed by <code class="font-mono text-[12px] bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">FLASK_SECRET_KEY</code> from your <code class="font-mono text-[12px] bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">.env</code>. Rotate the key to invalidate all existing sessions.</dd>
+      </div>
+      <div>
+        <dt class="font-medium text-zinc-900 dark:text-zinc-100">Password-reset tokens</dt>
+        <dd>Single-use, hashed before storage (same PBKDF2), default TTL 60 minutes. The cleartext token only exists in the email (or the server log if SMTP isn't configured).</dd>
+      </div>
+      <div>
+        <dt class="font-medium text-zinc-900 dark:text-zinc-100">API tokens</dt>
+        <dd>Only the <em>prefix</em> is stored in the clear; the full token is hashed. Lost tokens cannot be recovered — revoke and re-issue.</dd>
+      </div>
+      <div>
+        <dt class="font-medium text-zinc-900 dark:text-zinc-100">Uploads &amp; generated files</dt>
+        <dd>Each job lives in its own UUID folder under
+          <code class="font-mono text-[12px] bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded break-all">{{ upload_root }}</code>.
+          Background sweep removes unclaimed folders after <code class="font-mono text-[12px] bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">CLEANUP_MINUTES</code> and retired jobs after <code class="font-mono text-[12px] bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">JOB_RETENTION_DAYS</code>.</dd>
+      </div>
+    </dl>
+  </section>
+
+  <section class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm p-6">
+    <h3 class="text-sm font-semibold mb-3">Authorship</h3>
+    <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
+      <div><dt class="text-zinc-500 text-xs uppercase tracking-wider">Author</dt><dd class="mt-0.5">{{ app_owner }}</dd></div>
+      <div><dt class="text-zinc-500 text-xs uppercase tracking-wider">Owner</dt><dd class="mt-0.5">{{ app_company }}</dd></div>
+      <div><dt class="text-zinc-500 text-xs uppercase tracking-wider">Version</dt><dd class="mt-0.5 font-mono">{{ version }}</dd></div>
+      <div><dt class="text-zinc-500 text-xs uppercase tracking-wider">Year</dt><dd class="mt-0.5">© {{ current_year }}</dd></div>
+    </dl>
+  </section>
+
+</div>
+{% endblock %}

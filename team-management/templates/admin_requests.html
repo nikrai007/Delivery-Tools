@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}Join Requests · {{ platform_name }}{% endblock %}
+{% block page_title %}All join requests{% endblock %}
+
+{% block content %}
+{% set pending  = requests | selectattr('status', 'equalto', 'pending')  | list %}
+{% set resolved = requests | rejectattr('status', 'equalto', 'pending')  | list %}
+
+<div class="space-y-6">
+
+  {# ── Pending ──────────────────────────────────────────────────────── #}
+  <section class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm overflow-hidden">
+    <div class="p-5 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
+      <div>
+        <h2 class="text-sm font-semibold">Pending requests</h2>
+        <p class="text-xs text-zinc-500 mt-0.5">{{ pending|length }} awaiting decision</p>
+      </div>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-left text-sm">
+        <thead class="bg-zinc-50 dark:bg-zinc-800/50 text-zinc-500 border-b border-zinc-200 dark:border-zinc-800">
+          <tr>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">User</th>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">Employee code</th>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">Team requested</th>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">Requested</th>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px] text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-zinc-100 dark:divide-zinc-800">
+          {% for r in pending %}
+            <tr class="hover:bg-zinc-50/60 dark:hover:bg-zinc-800/40 transition-colors">
+              <td class="px-5 py-3">
+                <div class="font-medium">{{ r.username }}</div>
+                <div class="text-[11px] text-zinc-500">{{ r.email or '—' }}</div>
+                {% if r.full_name %}<div class="text-[11px] text-zinc-400 mt-0.5">{{ r.full_name }}</div>{% endif %}
+              </td>
+              <td class="px-5 py-3 font-mono text-xs text-zinc-500">{{ r.employee_code or '—' }}</td>
+              <td class="px-5 py-3 font-medium">{{ r.team_name }}</td>
+              <td class="px-5 py-3 text-xs text-zinc-500 tabular-nums whitespace-nowrap">{{ r.requested_at[:16].replace('T', ' ') }}</td>
+              <td class="px-5 py-3 text-right">
+                <div class="inline-flex items-center gap-2">
+                  <form method="post" action="{{ url_for('teams.admin_approve', req_id=r.id) }}" class="inline">
+                    <button type="submit"
+                            class="inline-flex items-center gap-1 h-7 px-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium rounded-md transition-colors">
+                      <span class="material-symbols-outlined text-[14px]">check</span> Approve
+                    </button>
+                  </form>
+                  <form method="post" action="{{ url_for('teams.admin_reject', req_id=r.id) }}" class="inline">
+                    <button type="submit"
+                            class="inline-flex items-center gap-1 h-7 px-3 bg-rose-600 hover:bg-rose-700 text-white text-xs font-medium rounded-md transition-colors">
+                      <span class="material-symbols-outlined text-[14px]">close</span> Reject
+                    </button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          {% else %}
+            <tr><td colspan="5" class="p-10 text-center text-sm text-zinc-500">No pending requests.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  {# ── Resolved ─────────────────────────────────────────────────────── #}
+  {% if resolved %}
+  <section class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm overflow-hidden">
+    <div class="p-5 border-b border-zinc-200 dark:border-zinc-800">
+      <h2 class="text-sm font-semibold">Resolved requests</h2>
+      <p class="text-xs text-zinc-500 mt-0.5">{{ resolved|length }} record{{ '' if resolved|length == 1 else 's' }}</p>
+    </div>
+    <div class="overflow-x-auto max-h-64 overflow-y-auto">
+      <table class="w-full text-left text-sm">
+        <thead class="bg-zinc-50 dark:bg-zinc-800/50 text-zinc-500 border-b border-zinc-200 dark:border-zinc-800 sticky top-0">
+          <tr>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">User</th>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">Team</th>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">Status</th>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">Reviewed</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-zinc-100 dark:divide-zinc-800">
+          {% for r in resolved %}
+            <tr>
+              <td class="px-5 py-3 font-medium">{{ r.username }}</td>
+              <td class="px-5 py-3 text-zinc-600 dark:text-zinc-400">{{ r.team_name }}</td>
+              <td class="px-5 py-3">
+                {% if r.status == 'approved' %}
+                  <span class="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-300">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> approved
+                  </span>
+                {% else %}
+                  <span class="inline-flex items-center gap-1 text-[11px] font-medium text-rose-600 dark:text-rose-400">
+                    <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span> rejected
+                  </span>
+                {% endif %}
+              </td>
+              <td class="px-5 py-3 text-xs text-zinc-500 tabular-nums">{{ r.reviewed_at[:16].replace('T', ' ') if r.reviewed_at else '—' }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

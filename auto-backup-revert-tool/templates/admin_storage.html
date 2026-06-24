@@ -1,0 +1,334 @@
+{% extends "base.html" %}
+{% block title %}Storage & System Settings · {{ platform_name }}{% endblock %}
+{% block page_title %}Storage & system settings{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+
+  {# ══ LEFT COLUMN — main panels ══════════════════════════════════════════ #}
+  <section class="xl:col-span-2 space-y-6">
+
+    {# ── 1. Storage paths ──────────────────────────────────────────────── #}
+    <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm p-6">
+      <div class="flex items-center gap-3 mb-5">
+        <span class="material-symbols-outlined text-brand-500 text-[26px]">folder_managed</span>
+        <div>
+          <h2 class="text-sm font-semibold">Storage paths</h2>
+          <p class="text-xs text-zinc-500 mt-0.5">Changes take effect for new jobs. Existing file references are unaffected.</p>
+        </div>
+      </div>
+
+      <form method="post" class="space-y-4 text-sm">
+        <input type="hidden" name="action" value="save">
+
+        <div class="space-y-1.5">
+          <label class="text-[13px] font-medium text-zinc-700 dark:text-zinc-300" for="log_path">Application log file path</label>
+          <div class="relative">
+            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-[18px]">description</span>
+            <input id="log_path" name="log_path" type="text" value="{{ current_log_path }}"
+                   class="w-full h-10 pl-10 pr-3 font-mono text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+          </div>
+          <p class="text-[11px] text-zinc-400">Parent directory is created if it doesn't exist. Leave blank to keep current.</p>
+        </div>
+
+        <div class="space-y-1.5">
+          <label class="text-[13px] font-medium text-zinc-700 dark:text-zinc-300" for="backup_dest">
+            Backup bundle archive destination <span class="text-zinc-400 font-normal">(optional)</span>
+          </label>
+          <div class="relative">
+            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-[18px]">archive</span>
+            <input id="backup_dest" name="backup_dest" type="text" value="{{ current_backup_dest }}"
+                   placeholder="/mnt/backups/delivery-toolbox"
+                   class="w-full h-10 pl-10 pr-3 font-mono text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+          </div>
+          <p class="text-[11px] text-zinc-400">Completed bundles are copied here for long-term storage.</p>
+        </div>
+
+        <div class="space-y-1.5">
+          <label class="text-[13px] font-medium text-zinc-700 dark:text-zinc-300" for="upload_root">Working upload directory</label>
+          <div class="relative">
+            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-[18px]">folder_open</span>
+            <input id="upload_root" name="upload_root" type="text" value="{{ current_upload_root }}"
+                   class="w-full h-10 pl-10 pr-3 font-mono text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+          </div>
+          <p class="text-[11px] text-zinc-400">Per-job working directories are created here. Takes effect after restart.</p>
+        </div>
+
+        <div class="space-y-1.5">
+          <label class="text-[13px] font-medium text-zinc-700 dark:text-zinc-300">Database directory <span class="text-zinc-400 font-normal">(read-only)</span></label>
+          <div class="relative">
+            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-[18px]">database</span>
+            <input type="text" value="{{ current_data_dir }}" readonly
+                   class="w-full h-10 pl-10 pr-3 font-mono text-xs bg-zinc-100 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 rounded-lg text-zinc-400 cursor-not-allowed">
+          </div>
+          <p class="text-[11px] text-zinc-400">Set via <code class="font-mono bg-zinc-100 dark:bg-zinc-800 px-1 rounded">DATA_DIR</code> in .env — cannot be changed at runtime.</p>
+        </div>
+
+        <div class="flex justify-end pt-2 border-t border-zinc-100 dark:border-zinc-800">
+          <button type="submit" class="h-9 px-5 bg-brand-600 hover:bg-brand-700 text-white font-medium rounded-lg shadow-sm transition-colors text-sm">Save paths</button>
+        </div>
+      </form>
+    </div>
+
+    {# ── 2. Retention & auto-cleanup ───────────────────────────────────── #}
+    <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm p-6">
+      <div class="flex items-center gap-3 mb-5">
+        <span class="material-symbols-outlined text-brand-500 text-[26px]">schedule</span>
+        <div>
+          <h2 class="text-sm font-semibold">Retention & auto-cleanup</h2>
+          <p class="text-xs text-zinc-500 mt-0.5">Controls automatic background removal of old working directories. Job records are always preserved.</p>
+        </div>
+      </div>
+
+      <form method="post" class="space-y-5 text-sm">
+        <input type="hidden" name="action" value="save_retention">
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div class="space-y-1.5">
+            <label class="text-[13px] font-medium text-zinc-700 dark:text-zinc-300" for="retention_days">
+              Retention window (days)
+            </label>
+            <div class="relative">
+              <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-[18px]">calendar_today</span>
+              <input id="retention_days" name="retention_days" type="number" min="1" max="3650"
+                     value="{{ retention_days }}"
+                     class="w-full h-10 pl-10 pr-3 font-mono text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+            </div>
+            <p class="text-[11px] text-zinc-400">Working directories older than this are eligible for auto-removal.</p>
+          </div>
+
+          <div class="space-y-1.5">
+            <label class="text-[13px] font-medium text-zinc-700 dark:text-zinc-300">Auto-cleanup</label>
+            <div class="flex items-center gap-3 h-10 px-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg">
+              <label class="flex items-center gap-2 cursor-pointer select-none">
+                <input type="radio" name="auto_cleanup" value="1" {% if auto_cleanup %}checked{% endif %}
+                       class="accent-brand-600">
+                <span class="text-sm text-zinc-700 dark:text-zinc-300">Enabled</span>
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer select-none ml-4">
+                <input type="radio" name="auto_cleanup" value="0" {% if not auto_cleanup %}checked{% endif %}
+                       class="accent-brand-600">
+                <span class="text-sm text-zinc-700 dark:text-zinc-300">Disabled</span>
+              </label>
+            </div>
+            <p class="text-[11px] text-zinc-400">When disabled, working directories must be cleaned manually.</p>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between pt-3 border-t border-zinc-100 dark:border-zinc-800">
+          <div>
+            {% if auto_cleanup %}
+              <span class="inline-flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                Auto-cleanup active · removes dirs older than {{ retention_days }} day(s)
+              </span>
+            {% else %}
+              <span class="inline-flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400 font-medium">
+                <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                Auto-cleanup disabled — use manual cleanup below
+              </span>
+            {% endif %}
+          </div>
+          <div class="flex gap-2">
+            <button type="submit" class="h-9 px-5 bg-brand-600 hover:bg-brand-700 text-white font-medium rounded-lg shadow-sm transition-colors text-sm">
+              Save retention
+            </button>
+            <button type="submit" form="cleanup-now-form"
+                    onclick="return confirm('Run cleanup now? Removes working directories older than {{ retention_days }} day(s). Job records are not affected.')"
+                    class="h-9 px-4 bg-zinc-700 hover:bg-zinc-600 text-white font-medium rounded-lg shadow-sm transition-colors text-sm flex items-center gap-1.5">
+              <span class="material-symbols-outlined text-[16px]">cleaning_services</span>
+              Run now
+            </button>
+          </div>
+        </div>
+      </form>
+
+      {# Hidden form for "Run now" so it posts the cleanup action #}
+      <form id="cleanup-now-form" method="post" class="hidden">
+        <input type="hidden" name="action" value="cleanup">
+      </form>
+    </div>
+
+    {# ── 3. Date-range cleanup ─────────────────────────────────────────── #}
+    <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm p-6">
+      <div class="flex items-center gap-3 mb-3">
+        <span class="material-symbols-outlined text-amber-500 text-[26px]">date_range</span>
+        <div>
+          <h2 class="text-sm font-semibold">Date-range cleanup</h2>
+          <p class="text-xs text-zinc-500 mt-0.5">Remove working directories for jobs created in a specific window. Recent jobs outside the range are untouched.</p>
+        </div>
+      </div>
+
+      <div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 rounded-lg px-4 py-3 mb-5 text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
+        <strong>Production note:</strong> This only removes the on-disk working directories (temporary files, generated scripts). Job records, history, and download logs in the database are <strong>not</strong> affected — your audit trail is always preserved.
+      </div>
+
+      <form method="post"
+            onsubmit="return confirm('Remove working directories for all jobs created between ' + document.getElementById('date_from').value + ' and ' + document.getElementById('date_to').value + '?\n\nJob records in the database will NOT be deleted.')">
+        <input type="hidden" name="action" value="cleanup_range">
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
+          <div class="space-y-1.5">
+            <label class="text-[13px] font-medium text-zinc-700 dark:text-zinc-300" for="date_from">From (inclusive)</label>
+            <div class="relative">
+              <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-[18px]">event</span>
+              <input id="date_from" name="date_from" type="date" required
+                     class="w-full h-10 pl-10 pr-3 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500">
+            </div>
+          </div>
+          <div class="space-y-1.5">
+            <label class="text-[13px] font-medium text-zinc-700 dark:text-zinc-300" for="date_to">To (inclusive)</label>
+            <div class="relative">
+              <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-[18px]">event</span>
+              <input id="date_to" name="date_to" type="date" required
+                     class="w-full h-10 pl-10 pr-3 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500">
+            </div>
+          </div>
+        </div>
+
+        <div class="flex justify-end">
+          <button type="submit"
+                  class="inline-flex items-center gap-2 h-9 px-5 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-lg shadow-sm transition-colors">
+            <span class="material-symbols-outlined text-[18px]">delete_sweep</span>
+            Clear selected range
+          </button>
+        </div>
+      </form>
+    </div>
+
+    {# ── 4. System limits ──────────────────────────────────────────────── #}
+    <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm p-6">
+      <div class="flex items-center gap-3 mb-5">
+        <span class="material-symbols-outlined text-brand-500 text-[26px]">tune</span>
+        <div>
+          <h2 class="text-sm font-semibold">System limits</h2>
+          <p class="text-xs text-zinc-500 mt-0.5">Live settings — take effect immediately, no restart required.</p>
+        </div>
+      </div>
+
+      <form method="post" class="space-y-4 text-sm">
+        <input type="hidden" name="action" value="save_system">
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div class="space-y-1.5">
+            <label class="text-[13px] font-medium text-zinc-700 dark:text-zinc-300" for="max_upload_mb">
+              Max upload size (MB)
+            </label>
+            <div class="relative">
+              <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-[18px]">upload_file</span>
+              <input id="max_upload_mb" name="max_upload_mb" type="number" min="1" max="10240"
+                     value="{{ max_upload_mb }}"
+                     class="w-full h-10 pl-10 pr-3 font-mono text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+            </div>
+            <p class="text-[11px] text-zinc-400">Applied immediately to running server. Also update .env to persist across restarts.</p>
+          </div>
+
+          <div class="space-y-1.5">
+            <label class="text-[13px] font-medium text-zinc-700 dark:text-zinc-300" for="reset_token_ttl">
+              Password-reset link expiry (minutes)
+            </label>
+            <div class="relative">
+              <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-[18px]">timer</span>
+              <input id="reset_token_ttl" name="reset_token_ttl" type="number" min="5" max="1440"
+                     value="{{ reset_token_ttl }}"
+                     class="w-full h-10 pl-10 pr-3 font-mono text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+            </div>
+            <p class="text-[11px] text-zinc-400">How long a forgot-password email link stays valid.</p>
+          </div>
+        </div>
+
+        <div class="flex justify-end pt-2 border-t border-zinc-100 dark:border-zinc-800">
+          <button type="submit" class="h-9 px-5 bg-brand-600 hover:bg-brand-700 text-white font-medium rounded-lg shadow-sm transition-colors text-sm">Save limits</button>
+        </div>
+      </form>
+    </div>
+
+  </section>
+
+  {# ══ RIGHT COLUMN — sidebar ══════════════════════════════════════════════ #}
+  <aside class="space-y-5">
+
+    {# Disk usage #}
+    <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm p-5">
+      <h3 class="text-sm font-semibold mb-4">Disk usage</h3>
+      <div class="space-y-4">
+        {% set used_pct = (disk_used_gb / disk_total_gb * 100) | round(1) %}
+        {% if used_pct > 100 %}{% set used_pct = 100 %}{% endif %}
+        <div>
+          <div class="flex justify-between text-xs mb-1">
+            <span class="text-zinc-500">Used</span>
+            <span class="font-mono font-medium">{{ "%.1f"|format(disk_used_gb) }} GB</span>
+          </div>
+          <div class="h-2 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+            <div class="h-full rounded-full {% if used_pct > 85 %}bg-rose-500{% elif used_pct > 65 %}bg-amber-500{% else %}bg-brand-500{% endif %} transition-all"
+                 style="width: {{ used_pct }}%"></div>
+          </div>
+          <div class="flex justify-between text-[10px] mt-1 text-zinc-400">
+            <span>{{ "%.1f"|format(disk_free_gb) }} GB free</span>
+            <span>{{ "%.1f"|format(disk_total_gb) }} GB total</span>
+          </div>
+        </div>
+        <div class="border-t border-zinc-100 dark:border-zinc-800 pt-3 space-y-2">
+          <div class="flex justify-between text-xs">
+            <span class="text-zinc-500">Upload working dirs</span>
+            <span class="font-mono font-medium">{{ "%.1f"|format(upload_size_mb) }} MB</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# Effective paths summary #}
+    <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm p-5">
+      <h3 class="text-sm font-semibold mb-3">Current effective paths</h3>
+      <div class="space-y-3 text-xs">
+        <div>
+          <p class="text-[10px] uppercase tracking-wider text-zinc-400 font-semibold mb-0.5">Log file</p>
+          <code class="font-mono text-brand-600 dark:text-brand-300 break-all">{{ current_log_path }}</code>
+        </div>
+        <div>
+          <p class="text-[10px] uppercase tracking-wider text-zinc-400 font-semibold mb-0.5">Upload root</p>
+          <code class="font-mono text-brand-600 dark:text-brand-300 break-all">{{ current_upload_root }}</code>
+        </div>
+        <div>
+          <p class="text-[10px] uppercase tracking-wider text-zinc-400 font-semibold mb-0.5">Database</p>
+          <code class="font-mono text-zinc-500 break-all">{{ current_data_dir }}</code>
+        </div>
+        {% if current_backup_dest %}
+        <div>
+          <p class="text-[10px] uppercase tracking-wider text-zinc-400 font-semibold mb-0.5">Backup archive</p>
+          <code class="font-mono text-emerald-600 dark:text-emerald-400 break-all">{{ current_backup_dest }}</code>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    {# Active settings summary #}
+    <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm p-5">
+      <h3 class="text-sm font-semibold mb-3">Active settings</h3>
+      <div class="space-y-3 text-xs">
+        <div class="flex justify-between">
+          <span class="text-zinc-500">Retention</span>
+          <span class="font-mono font-semibold">{{ retention_days }} days</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-zinc-500">Auto-cleanup</span>
+          {% if auto_cleanup %}
+            <span class="text-emerald-600 dark:text-emerald-400 font-semibold">Enabled</span>
+          {% else %}
+            <span class="text-amber-600 dark:text-amber-400 font-semibold">Disabled</span>
+          {% endif %}
+        </div>
+        <div class="flex justify-between">
+          <span class="text-zinc-500">Max upload</span>
+          <span class="font-mono font-semibold">{{ max_upload_mb }} MB</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-zinc-500">Reset link TTL</span>
+          <span class="font-mono font-semibold">{{ reset_token_ttl }} min</span>
+        </div>
+      </div>
+    </div>
+
+  </aside>
+</div>
+{% endblock %}

@@ -1,0 +1,19 @@
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    <div class="space-y-2 mb-4">
+      {% for category, message in messages %}
+        {% set pair = {
+          'success': ('bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-900/30 dark:border-emerald-800/70 dark:text-emerald-200', 'check_circle'),
+          'error':   ('bg-rose-100 border-rose-200 text-rose-800 dark:bg-rose-900/30 dark:border-rose-800/70 dark:text-rose-200', 'error'),
+          'warning': ('bg-amber-50 border-amber-200 text-amber-800 dark:bg-amber-900/30 dark:border-amber-800/70 dark:text-amber-200', 'warning'),
+          'info':    ('bg-sky-50 border-sky-200 text-sky-800 dark:bg-sky-900/30 dark:border-sky-800/70 dark:text-sky-200', 'info'),
+          'message': ('bg-zinc-50 border-zinc-200 text-zinc-800 dark:bg-zinc-800/70 dark:border-zinc-700 dark:text-zinc-200', 'notifications')
+        }.get(category, ('bg-zinc-50 border-zinc-200 text-zinc-800 dark:bg-zinc-800/70 dark:border-zinc-700 dark:text-zinc-200', 'notifications')) %}
+        <div class="px-4 py-3 rounded-lg border text-sm flex items-center gap-3 {{ pair[0] }}">
+          <span class="material-symbols-outlined text-[20px]">{{ pair[1] }}</span>
+          <span>{{ message }}</span>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+{% endwith %}

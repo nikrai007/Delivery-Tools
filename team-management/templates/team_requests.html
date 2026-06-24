@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Join Requests · {{ team.name }} · {{ platform_name }}{% endblock %}
+{% block page_title %}Join requests · {{ team.name }}{% endblock %}
+
+{% block content %}
+<div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm overflow-hidden">
+  <div class="p-5 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-3 flex-wrap">
+    <div>
+      <h2 class="text-sm font-semibold">Pending join requests</h2>
+      <p class="text-xs text-zinc-500 mt-0.5">{{ requests|length }} awaiting your decision</p>
+    </div>
+    <a href="{{ url_for('teams.my_team') }}"
+       class="inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors">
+      <span class="material-symbols-outlined text-[18px]">arrow_back</span> Back to dashboard
+    </a>
+  </div>
+
+  <div class="overflow-x-auto">
+    <table class="w-full text-left text-sm">
+      <thead class="bg-zinc-50 dark:bg-zinc-800/50 text-zinc-500 border-b border-zinc-200 dark:border-zinc-800">
+        <tr>
+          <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">Applicant</th>
+          <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">Employee code</th>
+          <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">Email</th>
+          <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">Requested</th>
+          <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px] text-right">Decision</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-zinc-100 dark:divide-zinc-800">
+        {% for r in requests %}
+          <tr class="hover:bg-zinc-50/60 dark:hover:bg-zinc-800/40 transition-colors">
+            <td class="px-5 py-3">
+              <div class="flex items-center gap-2.5">
+                <div class="h-8 w-8 rounded-full bg-brand-600 text-white flex items-center justify-center text-xs font-semibold shrink-0">
+                  {{ r.username[:1]|upper }}
+                </div>
+                <div>
+                  <div class="font-medium">{{ r.username }}</div>
+                  {% if r.full_name %}<div class="text-[11px] text-zinc-500">{{ r.full_name }}</div>{% endif %}
+                </div>
+              </div>
+            </td>
+            <td class="px-5 py-3 font-mono text-xs text-zinc-500">{{ r.employee_code or '—' }}</td>
+            <td class="px-5 py-3 text-xs text-zinc-500">{{ r.email or '—' }}</td>
+            <td class="px-5 py-3 text-xs text-zinc-500 tabular-nums whitespace-nowrap">{{ r.requested_at[:16].replace('T', ' ') }}</td>
+            <td class="px-5 py-3 text-right">
+              <div class="inline-flex items-center gap-2">
+                <form method="post" action="{{ url_for('teams.my_team_approve', req_id=r.id) }}" class="inline">
+                  <button type="submit"
+                          class="inline-flex items-center gap-1 h-7 px-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium rounded-md transition-colors">
+                    <span class="material-symbols-outlined text-[14px]">check</span> Approve
+                  </button>
+                </form>
+                <form method="post" action="{{ url_for('teams.my_team_reject', req_id=r.id) }}" class="inline">
+                  <button type="submit"
+                          class="inline-flex items-center gap-1 h-7 px-3 bg-rose-600 hover:bg-rose-700 text-white text-xs font-medium rounded-md transition-colors">
+                    <span class="material-symbols-outlined text-[14px]">close</span> Reject
+                  </button>
+                </form>
+              </div>
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="5" class="p-10 text-center text-sm text-zinc-500">No pending requests — you're all caught up!</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
