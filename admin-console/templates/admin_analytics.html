@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% block title %}Tool analytics · {{ platform_name }}{% endblock %}
+{% block page_title %}Tool analytics{% endblock %}
+
+{% macro fmt_ts(ts) -%}{{ ts[:16].replace('T',' ') if ts else '—' }}{%- endmacro %}
+
+{% block content %}
+<div class="space-y-6">
+
+  {# ─── Range selector ───────────────────────────────────────────────── #}
+  <div class="flex items-center justify-between flex-wrap gap-3">
+    <p class="text-sm text-zinc-500">Usage over the last <span class="font-semibold text-zinc-700 dark:text-zinc-300">{{ days }}</span> days.</p>
+    <div class="inline-flex rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden text-sm">
+      {% for d in [7, 30, 90, 365] %}
+        <a href="{{ url_for('admin.analytics', days=d) }}"
+           class="px-3 py-1.5 {% if days == d %}bg-brand-600 text-white{% else %}text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800{% endif %}">{{ d }}d</a>
+      {% endfor %}
+    </div>
+  </div>
+
+  {# ─── Overview tiles ───────────────────────────────────────────────── #}
+  <section class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    {% set tiles = [
+      {"label": "Total launches",     "value": overview.total_launches,  "icon": "rocket_launch"},
+      {"label": "Launches (%dd)"|format(days), "value": overview.window_launches, "icon": "trending_up"},
+      {"label": "Active users",       "value": overview.active_users,    "icon": "group"},
+      {"label": "Tools used",         "value": overview.tools_used,      "icon": "apps"}
+    ] %}
+    {% for t in tiles %}
+      <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-5 shadow-sm">
+        <div class="flex items-center justify-between">
+          <span class="text-[11px] uppercase tracking-wider text-zinc-500 font-semibold">{{ t.label }}</span>
+          <span class="material-symbols-outlined text-[18px] text-zinc-400">{{ t.icon }}</span>
+        </div>
+        <div class="mt-2 text-2xl font-bold tabular-nums">{{ t.value }}</div>
+      </div>
+    {% endfor %}
+  </section>
+
+  {# ─── Adoption trend (dependency-free bar chart) ───────────────────── #}
+  <section class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm p-5">
+    <h2 class="text-sm font-semibold mb-4">Adoption trend</h2>
+    {% if peak > 0 %}
+      <div class="flex items-end gap-0.5 h-40">
+        {% for d in per_day %}
+          <div class="flex-1 group relative flex items-end justify-center h-full">
+            <div class="w-full bg-brand-500/80 hover:bg-brand-500 rounded-t transition-all"
+                 style="height: {{ (d.count / peak * 100)|round(1) }}%" title="{{ d.date }}: {{ d.count }}"></div>
+          </div>
+        {% endfor %}
+      </div>
+      <div class="flex justify-between mt-2 text-[10px] text-zinc-400 font-mono">
+        <span>{{ per_day[0].date }}</span><span>peak {{ peak }}/day</span><span>{{ per_day[-1].date }}</span>
+      </div>
+    {% else %}
+      <p class="text-sm text-zinc-400 py-8 text-center">No tool launches recorded yet in this window.</p>
+    {% endif %}
+  </section>
+
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    {# ─── By tool ─── #}
+    <section class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm overflow-hidden">
+      <div class="p-5 border-b border-zinc-200 dark:border-zinc-800"><h2 class="text-sm font-semibold">Most used tools</h2></div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-sm">
+          <thead class="bg-zinc-50 dark:bg-zinc-800/50 text-zinc-500 border-b border-zinc-200 dark:border-zinc-800">
+            <tr>
+              <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">Tool</th>
+              <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px] text-right">Launches</th>
+              <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px] text-right">Users</th>
+              <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">Last used</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-zinc-100 dark:divide-zinc-800">
+            {% for r in by_tool %}
+              <tr>
+                <td class="px-5 py-3">
+                  <span class="font-medium">{{ r.name }}</span>
+                  {% if not r.is_enabled %}<span class="ml-1 text-[10px] text-zinc-400">(disabled)</span>{% endif %}
+                  <span class="block text-[11px] text-zinc-400 font-mono">{{ r.slug }}</span>
+                </td>
+                <td class="px-5 py-3 text-right tabular-nums font-semibold">{{ r.launches }}</td>
+                <td class="px-5 py-3 text-right tabular-nums text-zinc-500">{{ r.unique_users }}</td>
+                <td class="px-5 py-3 text-xs text-zinc-500 tabular-nums">{{ fmt_ts(r.last_at) }}</td>
+              </tr>
+            {% else %}
+              <tr><td colspan="4" class="px-5 py-8 text-center text-zinc-400">No tools registered.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    {# ─── By user ─── #}
+    <section class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm overflow-hidden">
+      <div class="p-5 border-b border-zinc-200 dark:border-zinc-800"><h2 class="text-sm font-semibold">Top users</h2></div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-sm">
+          <thead class="bg-zinc-50 dark:bg-zinc-800/50 text-zinc-500 border-b border-zinc-200 dark:border-zinc-800">
+            <tr>
+              <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">User</th>
+              <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px] text-right">Launches</th>
+              <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px] text-right">Tools</th>
+              <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">Last active</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-zinc-100 dark:divide-zinc-800">
+            {% for r in by_user %}
+              <tr>
+                <td class="px-5 py-3 font-medium">{{ r.username or ('user #' ~ r.user_id) }}</td>
+                <td class="px-5 py-3 text-right tabular-nums font-semibold">{{ r.launches }}</td>
+                <td class="px-5 py-3 text-right tabular-nums text-zinc-500">{{ r.distinct_tools }}</td>
+                <td class="px-5 py-3 text-xs text-zinc-500 tabular-nums">{{ fmt_ts(r.last_at) }}</td>
+              </tr>
+            {% else %}
+              <tr><td colspan="4" class="px-5 py-8 text-center text-zinc-400">No usage recorded yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  {# ─── By team ─── #}
+  <section class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm overflow-hidden">
+    <div class="p-5 border-b border-zinc-200 dark:border-zinc-800"><h2 class="text-sm font-semibold">Usage by team</h2></div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-left text-sm">
+        <thead class="bg-zinc-50 dark:bg-zinc-800/50 text-zinc-500 border-b border-zinc-200 dark:border-zinc-800">
+          <tr>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">Team</th>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px] text-right">Launches</th>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px] text-right">Members active</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-zinc-100 dark:divide-zinc-800">
+          {% for r in by_team %}
+            <tr>
+              <td class="px-5 py-3 font-medium">{{ r.team_name or ('team #' ~ r.team_id) }}</td>
+              <td class="px-5 py-3 text-right tabular-nums font-semibold">{{ r.launches }}</td>
+              <td class="px-5 py-3 text-right tabular-nums text-zinc-500">{{ r.unique_users }}</td>
+            </tr>
+          {% else %}
+            <tr><td colspan="3" class="px-5 py-8 text-center text-zinc-400">No team-attributed usage yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+{% endblock %}

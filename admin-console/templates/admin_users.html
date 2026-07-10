@@ -64,7 +64,7 @@
                   <button type="button" class="text-brand-600 hover:text-brand-700" data-open="edit-{{ u.id }}">edit</button>
                   <button type="button" class="text-amber-600 hover:text-amber-700" data-open="reset-{{ u.id }}">reset pw</button>
                   {% if u.id != current_user.id and not (u.role == 'admin' and admin_count <= 1) %}
-                    <form method="post" action="{{ url_for('abr.admin_users_delete', uid=u.id) }}"
+                    <form method="post" action="{{ url_for('admin.users_delete', uid=u.id) }}"
                           onsubmit="return confirm('Delete user {{ u.username }}? This cannot be undone.')" class="inline">
                       <button type="submit" class="text-rose-600 hover:text-rose-700">delete</button>
                     </form>
@@ -81,7 +81,7 @@
   {# ─── Create new user ──────────────────────────────────────── #}
   <aside class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm p-5">
     <h3 class="text-sm font-semibold mb-4">Create a new user</h3>
-    <form method="post" action="{{ url_for('abr.admin_users_create') }}" class="space-y-3 text-sm">
+    <form method="post" action="{{ url_for('admin.users_create') }}" class="space-y-3 text-sm">
       <div class="space-y-1.5">
         <label class="text-[13px] font-medium text-zinc-700 dark:text-zinc-300">Username</label>
         <input name="username" type="text" required minlength="3" maxlength="32" pattern="[A-Za-z0-9._-]+"
@@ -114,7 +114,7 @@
 {# ─── Modal overlays (hoisted out of the table so showModal() is reliable) ─── #}
 {% for u in users %}
   <dialog id="edit-{{ u.id }}" class="bg-transparent p-0 backdrop:bg-zinc-900/50 backdrop:backdrop-blur-sm max-w-md w-full rounded-xl">
-    <form method="post" action="{{ url_for('abr.admin_users_edit', uid=u.id) }}"
+    <form method="post" action="{{ url_for('admin.users_edit', uid=u.id) }}"
           class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-5 space-y-4 text-sm shadow-lg">
       <div class="flex items-center justify-between">
         <h3 class="text-base font-semibold">Edit user · {{ u.username }}</h3>
@@ -147,7 +147,7 @@
   </dialog>
 
   <dialog id="reset-{{ u.id }}" class="bg-transparent p-0 backdrop:bg-zinc-900/50 backdrop:backdrop-blur-sm max-w-md w-full rounded-xl">
-    <form method="post" action="{{ url_for('abr.admin_users_reset', uid=u.id) }}"
+    <form method="post" action="{{ url_for('admin.users_reset', uid=u.id) }}"
           class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-5 space-y-4 text-sm shadow-lg">
       <div class="flex items-center justify-between">
         <h3 class="text-base font-semibold">Reset password · {{ u.username }}</h3>

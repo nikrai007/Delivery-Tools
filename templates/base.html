@@ -11,7 +11,26 @@
         if (!t) t = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
         if (t === "dark") document.documentElement.classList.add("dark");
       })();
+      // Apply saved sidebar width / collapsed state before paint (no flash).
+      (function () {
+        try {
+          var w = localStorage.getItem("dt_sidebar_w");
+          if (w) document.documentElement.style.setProperty("--sidebar-w", w);
+          if (localStorage.getItem("dt_sidebar_collapsed") === "1")
+            document.documentElement.classList.add("sidebar-collapsed");
+        } catch (e) {}
+      })();
     </script>
+    <style>
+      /* Resizable + collapsible sidebar (desktop only; mobile keeps the off-canvas drawer). */
+      @media (min-width: 1024px) {
+        #sidebar   { width: var(--sidebar-w, 16rem); }
+        #main-wrap { margin-left: var(--sidebar-w, 16rem); }
+        .sidebar-collapsed #sidebar   { width: 0 !important; min-width: 0; overflow: hidden; opacity: 0; pointer-events: none; }
+        .sidebar-collapsed #main-wrap { margin-left: 0; }
+      }
+      #sidebar-resizer { touch-action: none; }
+    </style>
 
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
     <script>
@@ -68,6 +87,10 @@
                   -translate-x-full lg:translate-x-0 transition-transform duration-200
                   border-r border-zinc-200 dark:border-zinc-800
                   bg-white dark:bg-zinc-900 text-sm">
+      {# Drag to resize (desktop); double-click to reset width. #}
+      <div id="sidebar-resizer"
+           class="hidden lg:block absolute top-0 right-0 h-full w-1.5 cursor-col-resize hover:bg-brand-400/40 active:bg-brand-500/60 z-50"
+           title="Drag to resize · double-click to reset"></div>
       <a href="{{ url_for('landing.index') }}" title="Back to all tools"
          class="block px-6 py-5 hover:bg-zinc-50 dark:hover:bg-zinc-800/40 transition-colors">
         <div class="flex items-center gap-3">
@@ -83,9 +106,26 @@
       {% set idle = 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800' %}
       {% set active = 'text-brand-600 dark:text-brand-300 bg-brand-50 dark:bg-brand-900/25 font-semibold' %}
 
-      <nav class="flex-1 px-4 space-y-1">
+      {# Collapsible sidebar section. Collapsed by default; the group containing
+         the current page starts open; a user's explicit toggle is remembered
+         (localStorage) and takes precedence — see the nav-group script below. #}
+      {% macro nav_group(key, label, open=False) %}
+        <div class="nav-group" data-nav-group="{{ key }}"{% if open %} data-default-open="1"{% endif %}>
+          <button type="button"
+                  class="nav-group-toggle w-full flex items-center justify-between gap-2 px-3 pt-5 pb-1 text-[10px] uppercase tracking-wider text-zinc-500 font-semibold hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
+                  aria-expanded="{{ 'true' if open else 'false' }}" aria-controls="navgrp-{{ key }}">
+            <span>{{ label }}</span>
+            <span class="material-symbols-outlined text-[16px] nav-chevron transition-transform duration-200 {% if open %}rotate-180{% endif %}">expand_more</span>
+          </button>
+          <div id="navgrp-{{ key }}" class="nav-group-items space-y-1 {% if not open %}hidden{% endif %}" role="region" aria-label="{{ label }}">
+            {{ caller() }}
+          </div>
+        </div>
+      {% endmacro %}
+
+      <nav class="flex-1 min-h-0 overflow-y-auto px-4 space-y-1">
         <a href="{{ url_for('landing.index') }}"
-           class="{{ item }} {{ idle }}">
+           class="{{ item }} {% if request.endpoint == 'landing.index' %}{{ active }}{% else %}{{ idle }}{% endif %}">
           <span class="material-symbols-outlined text-[20px]">apps</span>
           All tools
         </a>
@@ -98,92 +138,141 @@
             <p class="text-[11px] text-zinc-500 dark:text-zinc-400 leading-snug">Access is locked until your team request is approved.</p>
           </div>
         {% else %}
-          <a href="{{ url_for('abr.dashboard') }}"
-             class="{{ item }} {% if request.endpoint=='abr.dashboard' %}{{ active }}{% else %}{{ idle }}{% endif %}">
-            <span class="material-symbols-outlined text-[20px]">dashboard</span>
-            Dashboard
-          </a>
-          <a href="{{ url_for('abr.new_job') }}"
-             class="{{ item }} {% if request.endpoint=='abr.new_job' %}{{ active }}{% else %}{{ idle }}{% endif %}">
-            <span class="material-symbols-outlined text-[20px]">add_box</span>
-            New job
-          </a>
-          <a href="{{ url_for('abr.history') }}"
-             class="{{ item }} {% if request.endpoint=='abr.history' %}{{ active }}{% else %}{{ idle }}{% endif %}">
-            <span class="material-symbols-outlined text-[20px]">history</span>
-            History
-          </a>
+          {# Is the current page one of this user's tools? -> open the Tools group. #}
+          {% set ns = namespace(tools_active=False) %}
+          {% for t in nav_tools %}
+            {% if t.slug and request.endpoint and request.endpoint.startswith(t.slug ~ '.') %}{% set ns.tools_active = True %}{% endif %}
+          {% endfor %}
+
+          {# Tools — every tool this user may open, as peers. #}
+          {% if nav_tools %}
+            {% call nav_group('tools', 'Tools', ns.tools_active) %}
+              {% for t in nav_tools %}
+                <a href="{{ t.href }}"{% if t.target %} target="{{ t.target }}" rel="noopener"{% endif %}
+                   class="{{ item }} {% if t.slug and request.endpoint and request.endpoint.startswith(t.slug ~ '.') %}{{ active }}{% else %}{{ idle }}{% endif %}">
+                  {% if t.icon_type == 'image' %}
+                    <img src="{{ url_for('static', filename='tool-icons/' ~ t.icon) }}" alt="" class="h-5 w-5 rounded object-cover">
+                  {% else %}
+                    <span class="material-symbols-outlined text-[20px]">{{ t.icon }}</span>
+                  {% endif %}
+                  <span class="truncate">{{ t.name }}</span>
+                  {% if t.target %}<span class="material-symbols-outlined text-[14px] ml-auto text-zinc-400">open_in_new</span>{% endif %}
+                </a>
+              {% endfor %}
+            {% endcall %}
+          {% endif %}
+
+          {# AutoBackupRevert's own screens — shown only while inside that tool. #}
+          {% if 'abr' in accessible_tool_slugs and request.endpoint and request.endpoint.startswith('abr.') %}
+            {% call nav_group('abr', 'AutoBackupRevert', True) %}
+              <a href="{{ url_for('abr.dashboard') }}"
+                 class="{{ item }} {% if request.endpoint=='abr.dashboard' %}{{ active }}{% else %}{{ idle }}{% endif %}">
+                <span class="material-symbols-outlined text-[20px]">dashboard</span>
+                Dashboard
+              </a>
+              <a href="{{ url_for('abr.new_job') }}"
+                 class="{{ item }} {% if request.endpoint=='abr.new_job' %}{{ active }}{% else %}{{ idle }}{% endif %}">
+                <span class="material-symbols-outlined text-[20px]">add_box</span>
+                New job
+              </a>
+              <a href="{{ url_for('abr.history') }}"
+                 class="{{ item }} {% if request.endpoint=='abr.history' %}{{ active }}{% else %}{{ idle }}{% endif %}">
+                <span class="material-symbols-outlined text-[20px]">history</span>
+                History
+              </a>
+            {% endcall %}
+          {% endif %}
+
+          {# XPM Automator's own screens — shown only while inside that tool. #}
+          {% if 'xpm' in accessible_tool_slugs and request.endpoint and request.endpoint.startswith('xpm.') %}
+            {% call nav_group('xpm', 'XPM Automator', True) %}
+              <a href="{{ url_for('xpm.dashboard') }}"
+                 class="{{ item }} {% if request.endpoint=='xpm.dashboard' %}{{ active }}{% else %}{{ idle }}{% endif %}">
+                <span class="material-symbols-outlined text-[20px]">dashboard</span>
+                Dashboard
+              </a>
+              <a href="{{ url_for('xpm.new_run') }}"
+                 class="{{ item }} {% if request.endpoint=='xpm.new_run' %}{{ active }}{% else %}{{ idle }}{% endif %}">
+                <span class="material-symbols-outlined text-[20px]">cloud_upload</span>
+                New upload
+              </a>
+              <a href="{{ url_for('xpm.history') }}"
+                 class="{{ item }} {% if request.endpoint in ('xpm.history','xpm.detail','xpm.run_status') %}{{ active }}{% else %}{{ idle }}{% endif %}">
+                <span class="material-symbols-outlined text-[20px]">history</span>
+                Processing history
+              </a>
+              <a href="{{ url_for('xpm.explorer') }}"
+                 class="{{ item }} {% if request.endpoint=='xpm.explorer' %}{{ active }}{% else %}{{ idle }}{% endif %}">
+                <span class="material-symbols-outlined text-[20px]">travel_explore</span>
+                Batch explorer
+              </a>
+            {% endcall %}
+          {% endif %}
 
           {% if is_team_leader and not is_admin %}
-            <div class="pt-5 pb-1 px-3 text-[10px] uppercase tracking-wider text-zinc-500 font-semibold">My Team</div>
-            <a href="{{ url_for('teams.my_team') }}"
-               class="{{ item }} {% if request.endpoint in ('teams.my_team',) %}{{ active }}{% else %}{{ idle }}{% endif %}">
-              <span class="material-symbols-outlined text-[20px]">group</span>
-              Team dashboard
-            </a>
-            <a href="{{ url_for('teams.my_team_jobs') }}"
-               class="{{ item }} {% if request.endpoint in ('teams.my_team_jobs','teams.my_team_download') %}{{ active }}{% else %}{{ idle }}{% endif %}">
-              <span class="material-symbols-outlined text-[20px]">folder_open</span>
-              Team jobs
-            </a>
-            <a href="{{ url_for('teams.my_team_requests') }}"
-               class="{{ item }} {% if request.endpoint == 'teams.my_team_requests' %}{{ active }}{% else %}{{ idle }}{% endif %}">
-              <span class="material-symbols-outlined text-[20px]">how_to_reg</span>
-              Join requests
-              {% if pending_team_requests > 0 %}
-                <span class="ml-auto text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-500 text-white">{{ pending_team_requests }}</span>
-              {% endif %}
-            </a>
+            {% set team_active = request.endpoint and request.endpoint.startswith('teams.') %}
+            {% call nav_group('team', 'My Team', team_active) %}
+              <a href="{{ url_for('teams.my_team') }}"
+                 class="{{ item }} {% if request.endpoint in ('teams.my_team',) %}{{ active }}{% else %}{{ idle }}{% endif %}">
+                <span class="material-symbols-outlined text-[20px]">group</span>
+                Team dashboard
+              </a>
+              <a href="{{ url_for('teams.my_team_jobs') }}"
+                 class="{{ item }} {% if request.endpoint in ('teams.my_team_jobs','teams.my_team_download') %}{{ active }}{% else %}{{ idle }}{% endif %}">
+                <span class="material-symbols-outlined text-[20px]">folder_open</span>
+                Team jobs
+              </a>
+              <a href="{{ url_for('teams.my_team_requests') }}"
+                 class="{{ item }} {% if request.endpoint == 'teams.my_team_requests' %}{{ active }}{% else %}{{ idle }}{% endif %}">
+                <span class="material-symbols-outlined text-[20px]">how_to_reg</span>
+                Join requests
+                {% if pending_team_requests > 0 %}
+                  <span class="ml-auto text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-500 text-white">{{ pending_team_requests }}</span>
+                {% endif %}
+              </a>
+              <a href="{{ url_for('teams.my_team_tool_access') }}"
+                 class="{{ item }} {% if request.endpoint == 'teams.my_team_tool_access' %}{{ active }}{% else %}{{ idle }}{% endif %}">
+                <span class="material-symbols-outlined text-[20px]">tune</span>
+                Tool access
+              </a>
+            {% endcall %}
           {% endif %}
 
           {% if is_admin %}
-            <div class="pt-5 pb-1 px-3 text-[10px] uppercase tracking-wider text-zinc-500 font-semibold">Admin</div>
-            <a href="{{ url_for('abr.admin_home') }}"
-               class="{{ item }} {% if request.endpoint in ('abr.admin_home','abr.admin_job') %}{{ active }}{% else %}{{ idle }}{% endif %}">
-              <span class="material-symbols-outlined text-[20px]">groups</span>
-              User activity
-            </a>
-            <a href="{{ url_for('abr.admin_users') }}"
-               class="{{ item }} {% if request.endpoint and request.endpoint.startswith('abr.admin_users') %}{{ active }}{% else %}{{ idle }}{% endif %}">
-              <span class="material-symbols-outlined text-[20px]">manage_accounts</span>
-              Manage users
-            </a>
-            <a href="{{ url_for('teams.admin_teams') }}"
-               class="{{ item }} {% if request.endpoint and request.endpoint.startswith('teams.admin') %}{{ active }}{% else %}{{ idle }}{% endif %}">
-              <span class="material-symbols-outlined text-[20px]">group_work</span>
-              Teams
-              {% if pending_team_requests > 0 %}
-                <span class="ml-auto text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-500 text-white">{{ pending_team_requests }}</span>
-              {% endif %}
-            </a>
-            <a href="{{ url_for('abr.admin_sources') }}"
-               class="{{ item }} {% if request.endpoint and request.endpoint.startswith('abr.admin_sources') %}{{ active }}{% else %}{{ idle }}{% endif %}">
-              <span class="material-symbols-outlined text-[20px]">cloud_sync</span>
-              Watched sources
-            </a>
-            <a href="{{ url_for('abr.admin_storage') }}"
-               class="{{ item }} {% if request.endpoint == 'abr.admin_storage' %}{{ active }}{% else %}{{ idle }}{% endif %}">
-              <span class="material-symbols-outlined text-[20px]">folder_managed</span>
-              Storage settings
-            </a>
-            <a href="{{ url_for('abr.admin_logo') }}"
-               class="{{ item }} {% if request.endpoint == 'abr.admin_logo' %}{{ active }}{% else %}{{ idle }}{% endif %}">
-              <span class="material-symbols-outlined text-[20px]">image</span>
-              Logo
-            </a>
+            {# Platform administration is a single, tool-independent entry point. #}
+            {% set on_admin = request.endpoint and (request.endpoint.startswith('admin.')
+                              or request.endpoint.startswith('portal_admin.')
+                              or request.endpoint.startswith('teams.admin')) %}
+            {% call nav_group('admin', 'Administration', on_admin) %}
+              <a href="{{ url_for('admin.console') }}"
+                 class="{{ item }} {% if on_admin %}{{ active }}{% else %}{{ idle }}{% endif %}">
+                <span class="material-symbols-outlined text-[20px]">admin_panel_settings</span>
+                Admin console
+                {% if pending_team_requests > 0 %}
+                  <span class="ml-auto text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-500 text-white">{{ pending_team_requests }}</span>
+                {% endif %}
+              </a>
+            {% endcall %}
           {% endif %}
         {% endif %}
       </nav>
 
       <div class="p-4 border-t border-zinc-200 dark:border-zinc-800">
-        <div class="flex items-center gap-3 px-3 py-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-xl border border-zinc-200 dark:border-zinc-800">
-          <div class="h-9 w-9 rounded-full bg-brand-600 text-white flex items-center justify-center text-sm font-semibold">
-            {{ current_user.username[:1]|upper }}
-          </div>
+        <a href="{{ url_for('auth.profile') }}" class="flex items-center gap-3 px-3 py-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:border-brand-400/50 transition-colors">
+          {% if avatar_url %}
+            <img src="{{ avatar_url }}" alt="" class="h-9 w-9 rounded-full object-cover">
+          {% else %}
+            <div class="h-9 w-9 rounded-full bg-brand-600 text-white flex items-center justify-center text-sm font-semibold">
+              {{ current_user.username[:1]|upper }}
+            </div>
+          {% endif %}
           <div class="flex-1 min-w-0">
             <p class="text-sm font-medium truncate">{{ current_user.username }}</p>
             <p class="text-[11px] text-zinc-500 truncate">{{ current_user.role }}</p>
           </div>
+        </a>
+        <div class="flex items-center gap-3 px-3 mt-2">
+          <div class="flex-1"></div>
           <a href="{{ url_for('auth.logout') }}"
              title="Logout"
              class="p-2 rounded-md text-zinc-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors">
@@ -193,14 +282,14 @@
       </div>
     </aside>
 
-    <div class="lg:ml-64 min-h-screen flex flex-col">
+    <div id="main-wrap" class="min-h-screen flex flex-col">
       <header class="h-16 px-4 md:px-8 flex items-center justify-between sticky top-0 z-30
                      bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md
                      border-b border-zinc-200 dark:border-zinc-800 shadow-sm">
         <div class="flex items-center gap-3">
-          <button onclick="document.getElementById('sidebar').classList.toggle('-translate-x-full')"
-                  class="lg:hidden p-2 rounded-md text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                  title="Toggle sidebar">
+          <button onclick="toggleSidebar()"
+                  class="p-2 rounded-md text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                  title="Collapse / expand sidebar">
             <span class="material-symbols-outlined text-[22px]">menu</span>
           </button>
           <h1 class="font-headline font-semibold text-lg text-zinc-900 dark:text-zinc-100">
@@ -236,7 +325,14 @@
                     {% for n in notifications %}
                       <li class="px-4 py-3 {% if not n.is_read %}bg-brand-50/60 dark:bg-brand-900/10{% endif %}">
                         {% if n.link %}
-                          <a href="{{ n.link }}" class="block">
+                          {# Normalise stored links to the current mount point: root-relative paths
+                             get the app's script_root prefixed (unless already prefixed), so bell
+                             links resolve correctly whether the app is at / or /Delivery-Tools. #}
+                          {% set _nlink = n.link %}
+                          {% if _nlink.startswith('/') and request.script_root and not _nlink.startswith(request.script_root + '/') %}
+                            {% set _nlink = request.script_root ~ _nlink %}
+                          {% endif %}
+                          <a href="{{ _nlink }}" class="block">
                         {% endif %}
                         <p class="text-xs text-zinc-700 dark:text-zinc-300 leading-snug">{{ n.message }}</p>
                         <p class="text-[10px] text-zinc-400 mt-0.5">{{ n.created_at[:16].replace('T',' ') }}</p>
@@ -257,6 +353,78 @@
             <span class="material-symbols-outlined text-[20px] dark:hidden">dark_mode</span>
             <span class="material-symbols-outlined text-[20px] hidden dark:inline">light_mode</span>
           </button>
+
+          {# ── Profile menu ── #}
+          {% if current_user.is_authenticated %}
+            <div class="relative ml-1" id="profile-wrapper">
+              <button id="profile-btn"
+                      class="flex items-center gap-1.5 p-1 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                      title="Account" aria-expanded="false">
+                {% if avatar_url %}
+                  <img src="{{ avatar_url }}" alt="" class="h-8 w-8 rounded-full object-cover shadow-sm">
+                {% else %}
+                  <span class="h-8 w-8 rounded-full bg-brand-600 text-white flex items-center justify-center text-sm font-semibold shadow-sm">
+                    {{ current_user.username[:1]|upper }}
+                  </span>
+                {% endif %}
+                <span class="material-symbols-outlined text-[18px] hidden sm:inline">expand_more</span>
+              </button>
+              <div id="profile-panel"
+                   class="hidden absolute right-0 top-full mt-1 w-64 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-lg z-50 overflow-hidden">
+                <div class="flex items-center gap-3 px-4 py-3 border-b border-zinc-100 dark:border-zinc-800">
+                  {% if avatar_url %}
+                    <img src="{{ avatar_url }}" alt="" class="h-10 w-10 rounded-full object-cover shrink-0">
+                  {% else %}
+                    <span class="h-10 w-10 rounded-full bg-brand-600 text-white flex items-center justify-center text-base font-semibold shrink-0">
+                      {{ current_user.username[:1]|upper }}
+                    </span>
+                  {% endif %}
+                  <div class="min-w-0">
+                    <p class="text-sm font-semibold truncate text-zinc-900 dark:text-zinc-100">{{ current_user.full_name or current_user.username }}</p>
+                    <p class="text-[11px] text-zinc-500 truncate">{{ current_user.email or current_user.username }}</p>
+                    <span class="inline-block mt-1 text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500">{{ current_user.role }}</span>
+                  </div>
+                </div>
+                <div class="py-1">
+                  <a href="{{ url_for('auth.profile') }}"
+                     class="flex items-center gap-2.5 px-4 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+                    <span class="material-symbols-outlined text-[18px] text-zinc-400">account_circle</span> View profile
+                  </a>
+                  <a href="{{ url_for('auth.profile_edit') }}"
+                     class="flex items-center gap-2.5 px-4 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+                    <span class="material-symbols-outlined text-[18px] text-zinc-400">edit</span> Edit profile
+                  </a>
+                  <a href="{{ url_for('auth.security_settings') }}"
+                     class="flex items-center gap-2.5 px-4 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+                    <span class="material-symbols-outlined text-[18px] text-zinc-400">security</span> Security &amp; 2FA
+                  </a>
+                  <a href="{{ url_for('landing.index') }}"
+                     class="flex items-center gap-2.5 px-4 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+                    <span class="material-symbols-outlined text-[18px] text-zinc-400">apps</span> All tools
+                  </a>
+                  {% if is_admin %}
+                    <a href="{{ url_for('admin.console') }}"
+                       class="flex items-center gap-2.5 px-4 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+                      <span class="material-symbols-outlined text-[18px] text-zinc-400">admin_panel_settings</span> Admin console
+                      {% if pending_team_requests > 0 %}<span class="ml-auto text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-500 text-white">{{ pending_team_requests }}</span>{% endif %}
+                    </a>
+                  {% endif %}
+                  {% if is_team_leader and not is_admin %}
+                    <a href="{{ url_for('teams.my_team') }}"
+                       class="flex items-center gap-2.5 px-4 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+                      <span class="material-symbols-outlined text-[18px] text-zinc-400">group</span> Team dashboard
+                    </a>
+                  {% endif %}
+                </div>
+                <div class="py-1 border-t border-zinc-100 dark:border-zinc-800">
+                  <a href="{{ url_for('auth.logout') }}"
+                     class="flex items-center gap-2.5 px-4 py-2 text-sm text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors">
+                    <span class="material-symbols-outlined text-[18px]">logout</span> Sign out
+                  </a>
+                </div>
+              </div>
+            </div>
+          {% endif %}
         </div>
       </header>
 
@@ -272,6 +440,88 @@
     </div>
 
     <script src="{{ url_for('static', filename='app.js') }}"></script>
+
+    <script>
+      // ── Profile menu toggle ──────────────────────────────────────────────
+      (function () {
+        const btn = document.getElementById('profile-btn');
+        const panel = document.getElementById('profile-panel');
+        if (!btn || !panel) return;
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const open = !panel.classList.contains('hidden');
+          panel.classList.toggle('hidden', open);
+          btn.setAttribute('aria-expanded', String(!open));
+          const np = document.getElementById('notif-panel');   // close the bell if open
+          if (np) np.classList.add('hidden');
+        });
+        document.addEventListener('click', () => {
+          panel.classList.add('hidden');
+          btn.setAttribute('aria-expanded', 'false');
+        });
+        panel.addEventListener('click', e => e.stopPropagation());
+      })();
+
+      // ── Sidebar resize + collapse (persisted, desktop) ───────────────────
+      (function () {
+        const root = document.documentElement, body = document.body;
+        const rez = document.getElementById('sidebar-resizer');
+        let dragging = false;
+        if (rez) {
+          rez.addEventListener('mousedown', (e) => { dragging = true; body.style.userSelect = 'none'; e.preventDefault(); });
+          window.addEventListener('mousemove', (e) => {
+            if (!dragging) return;
+            const w = Math.max(200, Math.min(420, e.clientX));
+            root.style.setProperty('--sidebar-w', w + 'px');
+          });
+          window.addEventListener('mouseup', () => {
+            if (!dragging) return;
+            dragging = false; body.style.userSelect = '';
+            const w = getComputedStyle(root).getPropertyValue('--sidebar-w').trim();
+            if (w) localStorage.setItem('dt_sidebar_w', w);
+          });
+          rez.addEventListener('dblclick', () => {
+            root.style.setProperty('--sidebar-w', '16rem');
+            localStorage.setItem('dt_sidebar_w', '16rem');
+          });
+        }
+        window.toggleSidebar = function () {
+          if (window.matchMedia('(min-width:1024px)').matches) {
+            const c = root.classList.toggle('sidebar-collapsed');
+            localStorage.setItem('dt_sidebar_collapsed', c ? '1' : '0');
+          } else {
+            document.getElementById('sidebar').classList.toggle('-translate-x-full');
+          }
+        };
+      })();
+
+      // ── Collapsible sidebar sections (collapsed by default, state persisted) ──
+      (function () {
+        const KEY = 'dt_nav_';
+        function setOpen(group, open) {
+          const items = group.querySelector('.nav-group-items');
+          const btn = group.querySelector('.nav-group-toggle');
+          const chev = group.querySelector('.nav-chevron');
+          if (!items || !btn) return;
+          items.classList.toggle('hidden', !open);
+          btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+          if (chev) chev.classList.toggle('rotate-180', open);
+        }
+        document.querySelectorAll('.nav-group').forEach(function (group) {
+          const key = group.dataset.navGroup;
+          const stored = localStorage.getItem(KEY + key);
+          // Precedence: explicit user choice > server default (active section) > collapsed.
+          const open = stored === null ? (group.dataset.defaultOpen === '1') : (stored === '1');
+          setOpen(group, open);
+          const btn = group.querySelector('.nav-group-toggle');
+          if (btn) btn.addEventListener('click', function () {
+            const nowOpen = group.querySelector('.nav-group-items').classList.contains('hidden');
+            setOpen(group, nowOpen);
+            localStorage.setItem(KEY + key, nowOpen ? '1' : '0');
+          });
+        });
+      })();
+    </script>
 
     {# ── Session timeout warning modal ── #}
     <div id="session-warning"
@@ -299,7 +549,7 @@
     <script>
       // ── Session inactivity timeout (5 min) ──────────────────────────────
       (function () {
-        const TIMEOUT_MS  = 5 * 60 * 1000;   // 5 minutes total
+        const TIMEOUT_MS  = {{ session_timeout_minutes|default(5) }} * 60 * 1000;   // admin-configurable
         const WARN_MS     = 60 * 1000;        // warn 60s before logout
         let mainTimer, warnTimer, cdInterval;
 

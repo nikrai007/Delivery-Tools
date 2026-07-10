@@ -110,11 +110,16 @@ pre { tab-size: 4; }
 }
 .btn-sheen:hover::before { top: 120%; }
 
-/* Input focus halo */
-.input-glow { transition: box-shadow 180ms ease-out, border-color 180ms ease-out; }
+/* Input focus ring — subtle, crisp, enterprise. Box-shadow only (no layout
+   shift); dark-aware; keeps a clearly visible focus indicator for a11y. */
+.input-glow { transition: box-shadow 150ms ease, border-color 150ms ease; }
 .input-glow:focus-within {
-  box-shadow: 0 0 0 4px rgba(79,70,229,0.18);
-  border-color: #4f46e5 !important;
+  border-color: #6366f1;                        /* brand-500 */
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.20);
+}
+.dark .input-glow:focus-within {
+  border-color: #818cf8;                        /* brand-400 */
+  box-shadow: 0 0 0 3px rgba(129,140,248,0.22);
 }
 
 /* ────────────────────────────────────────────────────────────────

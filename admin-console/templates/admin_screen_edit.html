@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Edit — {{ meta.label }} · {{ platform_name }}{% endblock %}
+{% block page_title %}Edit screen text{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl space-y-5">
+  <div class="flex items-center gap-2 text-sm text-zinc-500">
+    <a href="{{ url_for('admin.screens') }}" class="hover:text-brand-600">Screen content</a>
+    <span class="material-symbols-outlined text-[16px]">chevron_right</span>
+    <span class="text-zinc-700 dark:text-zinc-300">{{ meta.label }}</span>
+  </div>
+
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <h2 class="text-lg font-semibold tracking-tight">{{ meta.label }}</h2>
+    {% if meta.endpoint %}
+      <a href="{{ url_for(meta.endpoint) }}" target="_blank" rel="noopener"
+         class="text-xs text-zinc-500 hover:text-brand-600 inline-flex items-center gap-1">
+        <span class="material-symbols-outlined text-[15px]">open_in_new</span>Open the screen
+      </a>
+    {% endif %}
+  </div>
+
+  <form method="post" action="{{ url_for('admin.edit_screen', key=key) }}" class="space-y-5">
+    {% for f in meta.fields %}
+      <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm p-5 space-y-2">
+        <div class="flex items-center justify-between gap-2">
+          <label for="f_{{ f.key }}" class="text-sm font-medium text-zinc-700 dark:text-zinc-300">{{ f.label }}</label>
+          <span class="text-[10px] font-mono text-zinc-400">{{ f.key }}</span>
+        </div>
+        {% set val = values.get(f.key, '') %}
+        {% if f.type == 'textarea' %}
+          <textarea id="f_{{ f.key }}" name="f_{{ f.key }}" rows="4" maxlength="8000"
+                    data-preview-src
+                    class="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30">{{ val }}</textarea>
+        {% else %}
+          <input id="f_{{ f.key }}" name="f_{{ f.key }}" type="text" value="{{ val }}" maxlength="8000"
+                 data-preview-src
+                 class="w-full h-10 px-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30">
+        {% endif %}
+        <p class="text-[11px] text-zinc-400">Default: <span class="font-mono">{{ f.default or '(empty)' }}</span> · leave blank to restore it.</p>
+      </div>
+    {% endfor %}
+
+    <div class="flex items-center gap-2">
+      <button type="submit" class="h-9 px-4 bg-brand-600 hover:bg-brand-700 text-white font-medium rounded-lg shadow-sm text-sm">Save changes</button>
+      <button type="button" id="togglePreview" class="h-9 px-3 rounded-lg border border-zinc-300 dark:border-zinc-700 text-sm inline-flex items-center gap-1.5">
+        <span class="material-symbols-outlined text-[16px]">visibility</span>Preview
+      </button>
+      <a href="{{ url_for('admin.screens') }}" class="h-9 px-3 inline-flex items-center rounded-lg text-sm text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200">Cancel</a>
+    </div>
+  </form>
+
+  {# Live preview (plain text, whitespace preserved) #}
+  <div id="previewPane" class="hidden bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm p-5">
+    <p class="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold mb-3">Preview</p>
+    <div id="previewBody" class="space-y-3 text-sm"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const btn = document.getElementById('togglePreview');
+  const pane = document.getElementById('previewPane');
+  const bodyEl = document.getElementById('previewBody');
+  const fields = Array.prototype.slice.call(document.querySelectorAll('[data-preview-src]'));
+  const labels = {{ meta.fields | map(attribute='label') | list | tojson }};
+
+  function esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
+  function render() {
+    bodyEl.innerHTML = fields.map(function (el, i) {
+      const v = (el.value || '').trim();
+      return '<div><p class="text-[10px] uppercase tracking-wider text-zinc-400 font-semibold mb-0.5">' + esc(labels[i]) + '</p>' +
+             '<div class="whitespace-pre-wrap break-words text-zinc-700 dark:text-zinc-300">' + (v ? esc(v) : '<span class="text-zinc-400 italic">(uses default)</span>') + '</div></div>';
+    }).join('');
+  }
+  btn.addEventListener('click', function () {
+    const open = pane.classList.toggle('hidden');
+    if (!open) render();
+  });
+  fields.forEach(function (el) { el.addEventListener('input', function () { if (!pane.classList.contains('hidden')) render(); }); });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}My profile · {{ platform_name }}{% endblock %}
+{% block page_title %}My profile{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl space-y-6">
+  <section class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm overflow-hidden">
+    <div class="p-6 flex items-center gap-5 border-b border-zinc-100 dark:border-zinc-800">
+      {% if avatar_url %}
+        <img src="{{ avatar_url }}" alt="" class="h-20 w-20 rounded-full object-cover ring-2 ring-brand-500/30">
+      {% else %}
+        <span class="h-20 w-20 rounded-full bg-brand-600 text-white flex items-center justify-center text-3xl font-semibold">
+          {{ current_user.username[:1]|upper }}
+        </span>
+      {% endif %}
+      <div class="min-w-0">
+        <h2 class="text-xl font-bold truncate">{{ current_user.full_name or current_user.username }}</h2>
+        <p class="text-sm text-zinc-500 truncate">{{ current_user.email or '—' }}</p>
+        <span class="inline-block mt-2 text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded bg-brand-500/15 text-brand-600 dark:text-brand-300">{{ current_user.role }}</span>
+      </div>
+      <a href="{{ url_for('auth.profile_edit') }}"
+         class="ml-auto inline-flex items-center gap-1.5 h-9 px-4 bg-gradient-to-b from-brand-500 to-brand-700 text-white text-sm font-semibold rounded-lg shadow-sm shadow-brand-500/25 hover:-translate-y-0.5 transition-all shrink-0">
+        <span class="material-symbols-outlined text-[18px]">edit</span> Edit profile
+      </a>
+    </div>
+
+    <dl class="divide-y divide-zinc-100 dark:divide-zinc-800 text-sm">
+      {% set rows = [
+        ("Username", current_user.username),
+        ("Full name", current_user.full_name or '—'),
+        ("Email", current_user.email or '—'),
+        ("Employee code", current_user.employee_code or '—'),
+        ("Role", current_user.role),
+        ("Team", team.name if team else '—'),
+        ("Team role", current_user.team_role or '—'),
+      ] %}
+      {% for label, value in rows %}
+        <div class="px-6 py-3 flex items-center justify-between gap-4">
+          <dt class="text-zinc-500">{{ label }}</dt>
+          <dd class="font-medium text-right truncate">{{ value }}</dd>
+        </div>
+      {% endfor %}
+    </dl>
+  </section>
+</div>
+{% endblock %}

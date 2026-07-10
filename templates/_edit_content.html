@@ -1,0 +1,18 @@
+{# Reusable "Edit this page's text" affordance for admin-editable screens.
+   Renders nothing for non-admins (role-based access control). Drop it at the
+   end of any screen registered in screen_content.SCREENS:
+       {% from "_edit_content.html" import edit_button %}
+       {{ edit_button('xpm_upload') }}
+#}
+{% macro edit_button(screen_key, label='Edit page text') %}
+  {% if is_admin %}
+    <div class="mt-6 flex justify-end">
+      <a href="{{ url_for('admin.edit_screen', key=screen_key) }}"
+         class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700
+                text-xs font-medium text-zinc-500 hover:text-brand-600 hover:border-brand-400 dark:hover:text-brand-300 transition-colors"
+         title="Edit this screen's text (admins only)">
+        <span class="material-symbols-outlined text-[15px]">edit_note</span>{{ label }}
+      </a>
+    </div>
+  {% endif %}
+{% endmacro %}

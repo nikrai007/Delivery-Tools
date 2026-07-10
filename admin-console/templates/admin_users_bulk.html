@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Bulk import · {{ platform_name }}{% endblock %}
+{% block page_title %}Bulk user import{% endblock %}
+
+{% block content %}
+<div class="space-y-6 max-w-2xl">
+
+  <section class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm p-6">
+    <h2 class="text-sm font-semibold mb-2">Import users from CSV</h2>
+    <p class="text-xs text-zinc-500 mb-4">
+      Provision or update many accounts at once — including team and role assignment.
+      Existing usernames are updated; new ones are created. Users created without a
+      <code>password</code> column get a random password and must set their own on first login.
+    </p>
+    <div class="mb-4 p-3 rounded-lg bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200 dark:border-zinc-800">
+      <p class="text-[11px] uppercase tracking-wider text-zinc-400 font-semibold mb-1">Expected header row</p>
+      <code class="text-xs break-all">{{ headers }}</code>
+      <p class="text-[11px] text-zinc-500 mt-2">Only <code>username</code> is required. <code>role</code> = user|admin. <code>team</code> = existing team name.</p>
+    </div>
+    <form method="post" enctype="multipart/form-data" class="flex items-center gap-3">
+      <input type="file" name="csv" accept=".csv,text/csv" required
+             class="text-sm file:mr-3 file:h-9 file:px-4 file:rounded-lg file:border-0 file:bg-brand-600 file:text-white file:font-medium hover:file:bg-brand-700">
+      <button type="submit" class="h-9 px-4 bg-brand-600 hover:bg-brand-700 text-white font-medium rounded-lg shadow-sm">Import</button>
+    </form>
+  </section>
+
+  {% if results %}
+  <section class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm p-6">
+    <h2 class="text-sm font-semibold mb-3">Import result</h2>
+    <div class="flex gap-4 text-sm mb-4">
+      <span class="px-3 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 font-semibold">{{ results.created }} created</span>
+      <span class="px-3 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 font-semibold">{{ results.updated }} updated</span>
+      <span class="px-3 py-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 font-semibold">{{ results.skipped }} skipped</span>
+    </div>
+    {% if results.errors %}
+      <p class="text-[13px] font-medium text-rose-600 dark:text-rose-400 mb-2">{{ results.errors|length }} issue(s):</p>
+      <ul class="text-xs text-zinc-500 space-y-1 max-h-64 overflow-y-auto">
+        {% for e in results.errors %}<li class="font-mono">{{ e }}</li>{% endfor %}
+      </ul>
+    {% else %}
+      <p class="text-xs text-emerald-600 dark:text-emerald-400">No issues.</p>
+    {% endif %}
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

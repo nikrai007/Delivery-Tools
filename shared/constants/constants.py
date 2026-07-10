@@ -46,3 +46,8 @@ ALLOWED_UPLOAD_EXT = {".7z", ".zip", ".sql"}
 
 # --- Brand assets -------------------------------------------------------
 BRAND_DIR = ROOT / "static" / "brand"
+
+# --- User avatars -------------------------------------------------------
+AVATAR_DIR = ROOT / "static" / "avatars"
+ALLOWED_AVATAR_EXT = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
+MAX_AVATAR_BYTES = 5 * 1024 * 1024   # 5 MB

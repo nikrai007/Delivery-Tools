@@ -6,3 +6,15 @@ waitress==3.0.0
 python-dotenv==1.0.1
 APScheduler==3.10.4
 cryptography>=42.0        # Encrypt Decrypt Utility — AES-256-CBC + PKCS7
+requests>=2.31           # XPM Automator — HTTP client for the XPM CRM (no BeautifulSoup: stdlib html.parser)
+
+# --- Enterprise: configurable database providers (#9) -------------------
+# SQLite (default) needs none of these. Install the driver for your target DB;
+# they are optional at runtime — the DB-config UI degrades gracefully if a
+# driver is absent.
+SQLAlchemy>=2.0            # cross-provider engine + reflection for migration
+psycopg[binary]>=3.1       # PostgreSQL   (dialect: postgresql+psycopg)
+PyMySQL>=1.1              # MySQL/MariaDB (dialect: mysql+pymysql)
+oracledb>=2.0             # Oracle        (dialect: oracle+oracledb, thin mode)
+pymongo>=4.6             # MongoDB
+# pyodbc>=5.0            # MS SQL Server (dialect: mssql+pyodbc) — needs system ODBC driver

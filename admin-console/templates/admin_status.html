@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block title %}System status · {{ platform_name }}{% endblock %}
+{% block page_title %}System status{% endblock %}
+
+{% block content %}
+<div class="space-y-6" id="status-root" data-json="{{ url_for('admin.status_json') }}" data-refresh="{{ refresh }}">
+
+  {# ─── Overall banner ───────────────────────────────────────────────── #}
+  <section id="status-banner"
+           class="rounded-xl border p-5 shadow-sm flex items-center justify-between gap-4 flex-wrap
+                  border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
+    <div class="flex items-center gap-4">
+      <div id="banner-dot" class="h-12 w-12 rounded-full flex items-center justify-center bg-zinc-100 dark:bg-zinc-800">
+        <span class="material-symbols-outlined text-[26px]">monitor_heart</span>
+      </div>
+      <div>
+        <h2 id="banner-title" class="text-lg font-bold">Checking…</h2>
+        <p id="banner-sub" class="text-sm text-zinc-500">Running health checks…</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <span class="text-xs text-zinc-400">Updated <span id="last-updated" class="tabular-nums">—</span></span>
+      <button id="refresh-now" class="h-9 px-3 rounded-lg border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-sm inline-flex items-center gap-1.5">
+        <span class="material-symbols-outlined text-[16px]">refresh</span>Refresh
+      </button>
+    </div>
+  </section>
+
+  {# ─── Refresh interval control ─────────────────────────────────────── #}
+  <form method="post" action="{{ url_for('admin.status_settings') }}" class="flex items-center gap-2 text-sm">
+    <label class="text-zinc-500">Auto-refresh every</label>
+    <input name="refresh_seconds" type="number" min="5" max="3600" value="{{ refresh }}"
+           class="h-9 w-24 px-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg">
+    <span class="text-zinc-500">seconds</span>
+    <button type="submit" class="h-9 px-3 rounded-lg border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800">Save</button>
+  </form>
+
+  {# ─── Checks table (rendered server-side, live-updated by JS) ──────── #}
+  <section class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="w-full text-left text-sm">
+        <thead class="bg-zinc-50 dark:bg-zinc-800/50 text-zinc-500 border-b border-zinc-200 dark:border-zinc-800">
+          <tr>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">Component</th>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">Type</th>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">Status</th>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px] text-right">Response</th>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">Detail</th>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">Last check</th>
+          </tr>
+        </thead>
+        <tbody id="checks-body" class="divide-y divide-zinc-100 dark:divide-zinc-800">
+          {# Populated + kept fresh by JS from status.json; SSR fallback below. #}
+          {% for c in checks %}
+            <tr>
+              <td class="px-5 py-3">
+                <span class="font-medium">{{ c.name }}</span>
+                <span class="block text-[10px] uppercase tracking-wider text-zinc-400">{{ c.group }}</span>
+              </td>
+              <td class="px-5 py-3"><span class="font-mono text-[11px] px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500">{{ c.type }}</span></td>
+              <td class="px-5 py-3">{{ c.status }}</td>
+              <td class="px-5 py-3 text-right tabular-nums">{{ c.response_ms if c.response_ms is not none else '—' }}</td>
+              <td class="px-5 py-3 text-zinc-500">{{ c.detail }}</td>
+              <td class="px-5 py-3 text-xs text-zinc-400 tabular-nums">{{ c.checked_at[11:19] }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  <p class="text-xs text-zinc-400">Error details are visible to administrators only.</p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const root = document.getElementById('status-root');
+  const jsonUrl = root.dataset.json;
+  const intervalMs = Math.max(5, parseInt(root.dataset.refresh, 10) || 30) * 1000;
+  const body = document.getElementById('checks-body');
+
+  const STYLE = {
+    online:   {dot: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40', badge: 'text-emerald-600 dark:text-emerald-400', ring: 'bg-emerald-500', title: 'All systems operational'},
+    degraded: {dot: 'bg-amber-100 text-amber-600 dark:bg-amber-900/40',       badge: 'text-amber-600 dark:text-amber-400',       ring: 'bg-amber-500',   title: 'Degraded performance'},
+    offline:  {dot: 'bg-rose-100 text-rose-600 dark:bg-rose-900/40',          badge: 'text-rose-600 dark:text-rose-400',         ring: 'bg-rose-500',    title: 'Outage detected'},
+    unknown:  {dot: 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800',             badge: 'text-zinc-500',                            ring: 'bg-zinc-400',    title: 'Status unknown'},
+  };
+  function esc(s) { const d = document.createElement('div'); d.textContent = (s == null ? '' : String(s)); return d.innerHTML; }
+
+  function row(c) {
+    const st = STYLE[c.status] || STYLE.unknown;
+    const err = c.error ? `<div class="text-[11px] text-rose-500 mt-0.5">${esc(c.error)}</div>` : '';
+    return `<tr>
+      <td class="px-5 py-3"><span class="font-medium">${esc(c.name)}</span><span class="block text-[10px] uppercase tracking-wider text-zinc-400">${esc(c.group)}</span></td>
+      <td class="px-5 py-3"><span class="font-mono text-[11px] px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500">${esc(c.type)}</span></td>
+      <td class="px-5 py-3"><span class="inline-flex items-center gap-1.5 text-[11px] font-semibold ${st.badge}"><span class="w-2 h-2 rounded-full ${st.ring}"></span>${esc(c.status)}</span></td>
+      <td class="px-5 py-3 text-right tabular-nums">${c.response_ms == null ? '—' : esc(c.response_ms) + ' ms'}</td>
+      <td class="px-5 py-3 text-zinc-500">${esc(c.detail)}${err}</td>
+      <td class="px-5 py-3 text-xs text-zinc-400 tabular-nums">${esc((c.checked_at || '').substr(11, 8))}</td>
+    </tr>`;
+  }
+
+  function render(data) {
+    const st = STYLE[data.summary.overall] || STYLE.unknown;
+    const dot = document.getElementById('banner-dot');
+    dot.className = 'h-12 w-12 rounded-full flex items-center justify-center ' + st.dot;
+    document.getElementById('banner-title').textContent = st.title;
+    const cn = data.summary.counts;
+    document.getElementById('banner-sub').textContent =
+      `${cn.online} online · ${cn.degraded} degraded · ${cn.offline} offline · ${cn.unknown} unknown`;
+    document.getElementById('last-updated').textContent = new Date().toLocaleTimeString();
+    body.innerHTML = data.checks.map(row).join('');
+  }
+
+  function poll() {
+    fetch(jsonUrl, {headers: {'X-Requested-With': 'fetch'}})
+      .then(r => r.json()).then(render).catch(() => {});
+  }
+
+  document.getElementById('refresh-now').addEventListener('click', poll);
+  poll();
+  setInterval(poll, intervalMs);
+})();
+</script>
+{% endblock %}

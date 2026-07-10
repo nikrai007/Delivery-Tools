@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Team tool access · {{ platform_name }}{% endblock %}
+{% block page_title %}Tool access — {{ team.name }}{% endblock %}
+
+{% block content %}
+<form method="post" action="{{ url_for('teams.my_team_tool_access') }}" class="space-y-6">
+
+  <section class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm overflow-hidden">
+    <div class="p-5 border-b border-zinc-200 dark:border-zinc-800">
+      <h2 class="text-sm font-semibold">Who in your team can use which tool</h2>
+      <p class="text-xs text-zinc-500 mt-0.5">
+        Ticked = the member can open that tool. Untick to hide it from that member.
+        You can only restrict tools your team already has; you cannot grant new ones.
+      </p>
+    </div>
+
+    {% if members and tools %}
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-sm">
+          <thead class="bg-zinc-50 dark:bg-zinc-800/50 text-zinc-500 border-b border-zinc-200 dark:border-zinc-800">
+            <tr>
+              <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px] sticky left-0 bg-zinc-50 dark:bg-zinc-800/50">Member</th>
+              {% for tool in tools %}
+                <th class="px-4 py-3 font-medium text-center">
+                  <div class="flex flex-col items-center gap-1">
+                    <span class="material-symbols-outlined text-[18px] text-zinc-400">{{ tool.icon if tool.icon_type != 'image' else 'image' }}</span>
+                    <span class="text-[11px] font-medium normal-case text-zinc-600 dark:text-zinc-300 leading-tight max-w-[90px]">{{ tool.name }}</span>
+                  </div>
+                </th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-zinc-100 dark:divide-zinc-800">
+            {% for member in members %}
+              <tr class="hover:bg-zinc-50/60 dark:hover:bg-zinc-800/40">
+                <td class="px-5 py-3 sticky left-0 bg-white dark:bg-zinc-900">
+                  <div class="font-medium">{{ member.username }}</div>
+                  {% if member.full_name %}<div class="text-[11px] text-zinc-400">{{ member.full_name }}</div>{% endif %}
+                </td>
+                {% for tool in tools %}
+                  <td class="px-4 py-3 text-center">
+                    <input type="checkbox" name="allow_{{ member.id }}_{{ tool.id }}" value="1"
+                           class="rounded text-brand-600 focus:ring-brand-500 h-4 w-4"
+                           {% if tool.id not in restricted[member.id] %}checked{% endif %}>
+                  </td>
+                {% endfor %}
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="p-10 text-center text-sm text-zinc-500">
+        {% if not members %}Your team has no members to manage yet.{% else %}No tools are available to your team.{% endif %}
+      </div>
+    {% endif %}
+  </section>
+
+  {% if members and tools %}
+    <div class="flex items-center gap-3">
+      <button type="submit"
+              class="inline-flex items-center gap-1.5 h-10 px-5 bg-gradient-to-b from-brand-500 to-brand-700 text-white text-sm font-semibold rounded-lg shadow-sm shadow-brand-500/25 hover:-translate-y-0.5 transition-all">
+        <span class="material-symbols-outlined text-[18px]">save</span> Save access
+      </button>
+      <a href="{{ url_for('teams.my_team') }}"
+         class="inline-flex items-center h-10 px-5 text-sm font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800/60 transition-colors">
+        Back
+      </a>
+    </div>
+  {% endif %}
+</form>
+{% endblock %}

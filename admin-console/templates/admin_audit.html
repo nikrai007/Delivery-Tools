@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% block title %}Audit log · {{ platform_name }}{% endblock %}
+{% block page_title %}Audit log{% endblock %}
+
+{% macro cat_badge(cat) -%}
+  {% set colors = {
+    'auth':     'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+    'security': 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300',
+    'user':     'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+    'team':     'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',
+    'tool':     'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300',
+    'approval': 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+    'config':   'bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200'
+  } %}
+  <span class="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-md font-semibold {{ colors.get(cat, 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300') }}">{{ cat }}</span>
+{%- endmacro %}
+
+{% block content %}
+<div class="space-y-5">
+
+  {# ─── Filter bar ───────────────────────────────────────────────────── #}
+  <section class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm p-5">
+    <form method="get" action="{{ url_for('admin.audit_log') }}" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
+      <div class="space-y-1.5 lg:col-span-2">
+        <label class="text-[13px] font-medium text-zinc-700 dark:text-zinc-300">Search</label>
+        <input name="q" value="{{ raw.q }}" placeholder="user, action, target, IP or details…"
+               class="w-full h-9 px-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500/30">
+      </div>
+      <div class="space-y-1.5">
+        <label class="text-[13px] font-medium text-zinc-700 dark:text-zinc-300">Category</label>
+        <select name="category" class="w-full h-9 px-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg">
+          <option value="">All</option>
+          {% for c in categories %}<option value="{{ c }}" {% if raw.category == c %}selected{% endif %}>{{ c }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="space-y-1.5">
+        <label class="text-[13px] font-medium text-zinc-700 dark:text-zinc-300">Action</label>
+        <select name="action" class="w-full h-9 px-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg">
+          <option value="">All</option>
+          {% for a in actions %}<option value="{{ a }}" {% if raw.action == a %}selected{% endif %}>{{ a }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="space-y-1.5">
+        <label class="text-[13px] font-medium text-zinc-700 dark:text-zinc-300">User</label>
+        <select name="user_id" class="w-full h-9 px-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg">
+          <option value="">All</option>
+          {% for u in users %}<option value="{{ u.id }}" {% if raw.user_id == u.id|string %}selected{% endif %}>{{ u.username }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="space-y-1.5">
+        <label class="text-[13px] font-medium text-zinc-700 dark:text-zinc-300">Status</label>
+        <select name="status" class="w-full h-9 px-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg">
+          <option value="">All</option>
+          <option value="success" {% if raw.status == 'success' %}selected{% endif %}>success</option>
+          <option value="failure" {% if raw.status == 'failure' %}selected{% endif %}>failure</option>
+        </select>
+      </div>
+      <div class="space-y-1.5">
+        <label class="text-[13px] font-medium text-zinc-700 dark:text-zinc-300">From</label>
+        <input type="date" name="from" value="{{ raw.from }}"
+               class="w-full h-9 px-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg">
+      </div>
+      <div class="space-y-1.5">
+        <label class="text-[13px] font-medium text-zinc-700 dark:text-zinc-300">To</label>
+        <input type="date" name="to" value="{{ raw.to }}"
+               class="w-full h-9 px-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg">
+      </div>
+      <div class="flex items-end gap-2 lg:col-span-4">
+        <button type="submit" class="h-9 px-4 bg-brand-600 hover:bg-brand-700 text-white font-medium rounded-lg shadow-sm">
+          <span class="material-symbols-outlined text-[16px] align-middle mr-1">search</span>Filter
+        </button>
+        <a href="{{ url_for('admin.audit_log') }}" class="h-9 px-4 flex items-center rounded-lg border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800">Clear</a>
+        <a href="{{ url_for('admin.audit_export', **raw) }}" class="h-9 px-4 flex items-center rounded-lg border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 ml-auto">
+          <span class="material-symbols-outlined text-[16px] align-middle mr-1">download</span>Export CSV
+        </a>
+      </div>
+    </form>
+  </section>
+
+  {# ─── Results ──────────────────────────────────────────────────────── #}
+  <section class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm overflow-hidden">
+    <div class="p-5 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
+      <h2 class="text-sm font-semibold">{{ total }} event{{ '' if total == 1 else 's' }}</h2>
+      <p class="text-xs text-zinc-500">Page {{ page }} of {{ total_pages }}</p>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-left text-sm">
+        <thead class="bg-zinc-50 dark:bg-zinc-800/50 text-zinc-500 border-b border-zinc-200 dark:border-zinc-800">
+          <tr>
+            <th class="px-4 py-3 font-medium uppercase tracking-wider text-[10px]">When (UTC)</th>
+            <th class="px-4 py-3 font-medium uppercase tracking-wider text-[10px]">User</th>
+            <th class="px-4 py-3 font-medium uppercase tracking-wider text-[10px]">Category</th>
+            <th class="px-4 py-3 font-medium uppercase tracking-wider text-[10px]">Action</th>
+            <th class="px-4 py-3 font-medium uppercase tracking-wider text-[10px]">Target</th>
+            <th class="px-4 py-3 font-medium uppercase tracking-wider text-[10px]">IP</th>
+            <th class="px-4 py-3 font-medium uppercase tracking-wider text-[10px]">Details</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-zinc-100 dark:divide-zinc-800">
+          {% for r in rows %}
+            <tr class="{% if r.status == 'failure' %}bg-rose-50/40 dark:bg-rose-900/10{% endif %} align-top">
+              <td class="px-4 py-3 text-xs text-zinc-500 tabular-nums whitespace-nowrap">{{ r.created_at[:19].replace('T',' ') }}</td>
+              <td class="px-4 py-3">
+                <span class="font-medium">{{ r.username or '—' }}</span>
+                {% if r.actor_role %}<span class="block text-[10px] text-zinc-400">{{ r.actor_role }}</span>{% endif %}
+              </td>
+              <td class="px-4 py-3">{{ cat_badge(r.category) }}</td>
+              <td class="px-4 py-3">
+                <span class="font-mono text-xs">{{ r.action }}</span>
+                {% if r.status == 'failure' %}
+                  <span class="ml-1 text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300 font-semibold">failed</span>
+                {% endif %}
+              </td>
+              <td class="px-4 py-3 text-zinc-600 dark:text-zinc-300">
+                {% if r.target_label %}{{ r.target_label }}{% else %}—{% endif %}
+                {% if r.target_type %}<span class="block text-[10px] text-zinc-400">{{ r.target_type }}{% if r.target_id %} #{{ r.target_id }}{% endif %}</span>{% endif %}
+              </td>
+              <td class="px-4 py-3 text-xs text-zinc-500 font-mono whitespace-nowrap">{{ r.ip_address or '—' }}</td>
+              <td class="px-4 py-3 text-xs text-zinc-500 max-w-xs">
+                {% if r.old_value or r.new_value %}
+                  <details class="cursor-pointer">
+                    <summary class="text-brand-600 hover:text-brand-700 select-none">before / after</summary>
+                    <div class="mt-1 space-y-1">
+                      {% if r.old_value %}<div><span class="text-rose-500 font-semibold">−</span> <code class="text-[11px] break-all">{{ r.old_value }}</code></div>{% endif %}
+                      {% if r.new_value %}<div><span class="text-emerald-500 font-semibold">+</span> <code class="text-[11px] break-all">{{ r.new_value }}</code></div>{% endif %}
+                    </div>
+                  </details>
+                {% endif %}
+                {% if r.details %}<div class="text-[11px] text-zinc-400 mt-1 break-all">{{ r.details }}</div>{% endif %}
+                {% if not r.old_value and not r.new_value and not r.details %}—{% endif %}
+              </td>
+            </tr>
+          {% else %}
+            <tr><td colspan="7" class="px-4 py-10 text-center text-zinc-400 text-sm">No audit events match these filters.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {# ─── Pager ─── #}
+    {% if total_pages > 1 %}
+      <div class="p-4 border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-between text-sm">
+        {% set _base = raw %}
+        {% if page > 1 %}
+          <a href="{{ url_for('admin.audit_log', page=page-1, **_base) }}" class="h-8 px-3 flex items-center rounded-lg border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800">← Newer</a>
+        {% else %}<span></span>{% endif %}
+        <span class="text-xs text-zinc-500">Page {{ page }} / {{ total_pages }}</span>
+        {% if page < total_pages %}
+          <a href="{{ url_for('admin.audit_log', page=page+1, **_base) }}" class="h-8 px-3 flex items-center rounded-lg border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800">Older →</a>
+        {% else %}<span></span>{% endif %}
+      </div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

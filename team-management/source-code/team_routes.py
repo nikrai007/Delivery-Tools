@@ -24,8 +24,28 @@ from flask import (
 )
 from flask_login import current_user, login_required
 
+import audit
+import email_utils
 import models
 from decorators import admin_required, team_leader_required
+
+
+def _notify_approved(req):
+    """Email the user that their join request was approved, and which tools they
+    can now access. Best-effort — never blocks the approval."""
+    to = req["email"] if "email" in req.keys() else None
+    if not to:
+        return
+    email_utils.notify("join_approved", to, username=req["username"], team=req["team_name"])
+    try:
+        restricted = models.get_restricted_tool_ids_for_user(req["user_id"])
+        tools = [t["name"] for t in models.list_tools_for_team(req["team_id"])
+                 if t["id"] not in restricted]
+        if tools:
+            email_utils.notify("tool_assigned", to, username=req["username"],
+                               tools=", ".join(tools))
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def _safe_next(fallback: str) -> str:
@@ -48,6 +68,29 @@ teams_bp = Blueprint(
 
 def _client_ip() -> str:
     return request.headers.get("X-Forwarded-For", request.remote_addr or "")
+
+
+def _apply_tool_selection(user_id: int, team_id: int, form) -> str | None:
+    """Persist the approver's mandatory tool choice as per-user access.
+
+    The user inherits their team's tools; "only these tools" is expressed by
+    restricting the ones the approver did not pick (via tool_user_restrictions).
+    Returns an error message if no valid choice was made, else None (applied)."""
+    scope = form.get("scope", "")
+    team_tools = models.list_tools_for_team(team_id)
+    if scope == "all":
+        for t in team_tools:
+            models.set_user_tool_restriction(t["id"], user_id, restricted=False, set_by=current_user.id)
+        return None
+    if scope == "specific":
+        selected = set(form.getlist("tool_ids"))
+        if not selected:
+            return "Select at least one tool, or choose “All tools”."
+        for t in team_tools:
+            allowed = str(t["id"]) in selected
+            models.set_user_tool_restriction(t["id"], user_id, restricted=not allowed, set_by=current_user.id)
+        return None
+    return "Choose which tools this user can access before approving."
 
 
 # -----------------------------------------------------------------------
@@ -155,20 +198,36 @@ def my_team_requests():
     return render_template("team_requests.html", team=team, requests=requests_list)
 
 
-@teams_bp.route("/my/requests/<int:req_id>/approve", methods=["POST"])
+@teams_bp.route("/my/requests/<int:req_id>/approve", methods=["GET", "POST"])
 @team_leader_required
 def my_team_approve(req_id: int):
     req = models.get_join_request(req_id)
     if req is None or req["team_id"] != current_user.team_id:
         abort(403)
-    models.approve_join_request(req_id, reviewed_by=current_user.id)
-    models.create_notification(
-        req["user_id"], "approved",
-        f"Your request to join '{req['team_name']}' was approved.",
-        link=url_for("abr.dashboard"),
-    )
-    flash(f"Approved {req['username']} into the team.", "success")
-    return redirect(url_for("teams.my_team_requests"))
+    tools = models.list_tools_for_team(req["team_id"])
+    if request.method == "POST":
+        err = _apply_tool_selection(req["user_id"], req["team_id"], request.form)
+        if err:
+            flash(err, "error")
+            return render_template("approve_request.html", req=req, tools=tools,
+                                   action=url_for("teams.my_team_approve", req_id=req_id),
+                                   cancel=url_for("teams.my_team_requests"))
+        models.approve_join_request(req_id, reviewed_by=current_user.id)
+        audit.record("approval.join_request_approved", category=audit.CAT_APPROVAL,
+                     target_type="user", target_id=req["user_id"], target_label=req["username"],
+                     new_value={"team": req["team_name"], "team_id": req["team_id"]},
+                     details={"reviewer": "team_leader"})
+        models.create_notification(
+            req["user_id"], "approved",
+            f"Your request to join '{req['team_name']}' was approved.",
+            link=url_for("abr.dashboard"),
+        )
+        _notify_approved(req)
+        flash(f"Approved {req['username']} into the team.", "success")
+        return redirect(url_for("teams.my_team_requests"))
+    return render_template("approve_request.html", req=req, tools=tools,
+                           action=url_for("teams.my_team_approve", req_id=req_id),
+                           cancel=url_for("teams.my_team_requests"))
 
 
 @teams_bp.route("/my/requests/<int:req_id>/reject", methods=["POST"])
@@ -178,12 +237,57 @@ def my_team_reject(req_id: int):
     if req is None or req["team_id"] != current_user.team_id:
         abort(403)
     models.reject_join_request(req_id, reviewed_by=current_user.id)
+    audit.record("approval.join_request_rejected", category=audit.CAT_APPROVAL,
+                 target_type="user", target_id=req["user_id"], target_label=req["username"],
+                 new_value={"team": req["team_name"], "team_id": req["team_id"]},
+                 details={"reviewer": "team_leader"})
     models.create_notification(
         req["user_id"], "rejected",
         f"Your request to join '{req['team_name']}' was not approved.",
     )
+    if "email" in req.keys() and req["email"]:
+        email_utils.notify("join_rejected", req["email"],
+                           username=req["username"], team=req["team_name"])
     flash(f"Rejected request from {req['username']}.", "info")
     return redirect(url_for("teams.my_team_requests"))
+
+
+# -----------------------------------------------------------------------
+# Team leader — per-member tool access (further restriction within the team)
+# -----------------------------------------------------------------------
+@teams_bp.route("/my/tool-access", methods=["GET", "POST"])
+@team_leader_required
+def my_team_tool_access():
+    if not current_user.team_id:
+        flash("You are not assigned to any team.", "warning")
+        return redirect(url_for("abr.dashboard"))
+
+    team    = models.get_team(current_user.team_id)
+    tools   = models.list_tools_for_team(current_user.team_id)
+    # Members the leader can manage — approved members who aren't the leader.
+    members = [m for m in models.get_team_members(current_user.team_id)
+               if m["team_role"] != "leader"]
+
+    if request.method == "POST":
+        # Server-authoritative loop: only tools visible to the team and members
+        # of this team are touched. A ticked box = allowed; unticked = restricted.
+        member_ids = {m["id"] for m in members}
+        for member in members:
+            for tool in tools:
+                if member["id"] not in member_ids:
+                    continue
+                allowed = request.form.get(f"allow_{member['id']}_{tool['id']}") is not None
+                models.set_user_tool_restriction(
+                    tool["id"], member["id"],
+                    restricted=not allowed, set_by=current_user.id,
+                )
+        flash("Tool access for your team was updated.", "success")
+        return redirect(url_for("teams.my_team_tool_access"))
+
+    # Build {member_id: {restricted tool_ids}} for rendering the checkboxes.
+    restricted = {m["id"]: models.get_restricted_tool_ids_for_user(m["id"]) for m in members}
+    return render_template("team_tool_access.html", team=team, tools=tools,
+                           members=members, restricted=restricted)
 
 
 # -----------------------------------------------------------------------
@@ -214,7 +318,10 @@ def admin_team_new():
         if models.get_team_by_name(name):
             flash("A team with that name already exists.", "error")
             return render_template("admin_team_form.html", team=None)
-        models.create_team(name, description, created_by=current_user.id)
+        team_id = models.create_team(name, description, created_by=current_user.id)
+        audit.record("team.created", category=audit.CAT_TEAM,
+                     target_type="team", target_id=team_id, target_label=name,
+                     new_value={"name": name, "description": description})
         flash(f"Team '{name}' created.", "success")
         return redirect(url_for("teams.admin_teams"))
     return render_template("admin_team_form.html", team=None)
@@ -240,6 +347,10 @@ def admin_team_edit(team_id: int):
             flash("Another team already uses that name.", "error")
             return render_template("admin_team_form.html", team=team)
         models.update_team(team_id, name, description)
+        audit.record("team.updated", category=audit.CAT_TEAM,
+                     target_type="team", target_id=team_id, target_label=name,
+                     old_value={"name": team["name"], "description": team["description"]},
+                     new_value={"name": name, "description": description})
         flash("Team updated.", "success")
         return redirect(url_for("teams.admin_teams"))
     return render_template("admin_team_form.html", team=team)
@@ -255,6 +366,9 @@ def admin_team_delete(team_id: int):
     if team is None:
         abort(404)
     models.delete_team(team_id)
+    audit.record("team.deleted", category=audit.CAT_TEAM,
+                 target_type="team", target_id=team_id, target_label=team["name"],
+                 old_value={"name": team["name"], "description": team["description"]})
     flash(f"Team '{team['name']}' deleted.", "info")
     return redirect(url_for("teams.admin_teams"))
 
@@ -273,6 +387,11 @@ def admin_set_leader(team_id: int):
         flash("Select a user to assign as team leader.", "error")
         return redirect(url_for("teams.admin_teams"))
     models.assign_team_leader(user_id, team_id)
+    leader = models.get_user(user_id)
+    audit.record("team.leader_assigned", category=audit.CAT_TEAM,
+                 target_type="team", target_id=team_id, target_label=team["name"],
+                 new_value={"leader_user_id": user_id,
+                            "leader_username": leader["username"] if leader else None})
     flash("Team leader assigned.", "success")
     return redirect(url_for("teams.admin_teams"))
 
@@ -283,7 +402,12 @@ def admin_set_leader(team_id: int):
 @teams_bp.route("/admin/users/<int:user_id>/remove-team", methods=["POST"])
 @admin_required
 def admin_remove_from_team(user_id: int):
+    target = models.get_user(user_id)
     models.remove_from_team(user_id)
+    audit.record("team.member_removed", category=audit.CAT_TEAM,
+                 target_type="user", target_id=user_id,
+                 target_label=target["username"] if target else str(user_id),
+                 old_value={"team_id": target["team_id"] if target else None})
     flash("User removed from team.", "info")
     return redirect(url_for("teams.admin_teams"))
 
@@ -298,20 +422,36 @@ def admin_requests():
     return render_template("admin_requests.html", requests=requests_list)
 
 
-@teams_bp.route("/admin/requests/<int:req_id>/approve", methods=["POST"])
+@teams_bp.route("/admin/requests/<int:req_id>/approve", methods=["GET", "POST"])
 @admin_required
 def admin_approve(req_id: int):
     req = models.get_join_request(req_id)
     if req is None:
         abort(404)
-    models.approve_join_request(req_id, reviewed_by=current_user.id)
-    models.create_notification(
-        req["user_id"], "approved",
-        f"Your request to join '{req['team_name']}' was approved.",
-        link=url_for("abr.dashboard"),
-    )
-    flash(f"Approved {req['username']}.", "success")
-    return redirect(url_for("teams.admin_requests"))
+    tools = models.list_tools_for_team(req["team_id"])
+    if request.method == "POST":
+        err = _apply_tool_selection(req["user_id"], req["team_id"], request.form)
+        if err:
+            flash(err, "error")
+            return render_template("approve_request.html", req=req, tools=tools,
+                                   action=url_for("teams.admin_approve", req_id=req_id),
+                                   cancel=url_for("teams.admin_requests"))
+        models.approve_join_request(req_id, reviewed_by=current_user.id)
+        audit.record("approval.join_request_approved", category=audit.CAT_APPROVAL,
+                     target_type="user", target_id=req["user_id"], target_label=req["username"],
+                     new_value={"team": req["team_name"], "team_id": req["team_id"]},
+                     details={"reviewer": "admin"})
+        models.create_notification(
+            req["user_id"], "approved",
+            f"Your request to join '{req['team_name']}' was approved.",
+            link=url_for("abr.dashboard"),
+        )
+        _notify_approved(req)
+        flash(f"Approved {req['username']}.", "success")
+        return redirect(url_for("teams.admin_requests"))
+    return render_template("approve_request.html", req=req, tools=tools,
+                           action=url_for("teams.admin_approve", req_id=req_id),
+                           cancel=url_for("teams.admin_requests"))
 
 
 @teams_bp.route("/admin/requests/<int:req_id>/reject", methods=["POST"])
@@ -321,10 +461,17 @@ def admin_reject(req_id: int):
     if req is None:
         abort(404)
     models.reject_join_request(req_id, reviewed_by=current_user.id)
+    audit.record("approval.join_request_rejected", category=audit.CAT_APPROVAL,
+                 target_type="user", target_id=req["user_id"], target_label=req["username"],
+                 new_value={"team": req["team_name"], "team_id": req["team_id"]},
+                 details={"reviewer": "admin"})
     models.create_notification(
         req["user_id"], "rejected",
         f"Your request to join '{req['team_name']}' was not approved.",
     )
+    if "email" in req.keys() and req["email"]:
+        email_utils.notify("join_rejected", req["email"],
+                           username=req["username"], team=req["team_name"])
     flash(f"Rejected {req['username']}.", "info")
     return redirect(url_for("teams.admin_requests"))
 

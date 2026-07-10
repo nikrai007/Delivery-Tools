@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block title %}Database · {{ platform_name }}{% endblock %}
+{% block page_title %}Database configuration{% endblock %}
+
+{% set field = "w-full h-9 px-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500/30" %}
+{% set lbl = "text-[13px] font-medium text-zinc-700 dark:text-zinc-300" %}
+{% set field_labels = {'host':'Host','port':'Port','database':'Database / service','username':'Username','password':'Password','extra':'Extra (key=value;…)','uri':'Full URI (optional)','path':'File path'} %}
+
+{% block content %}
+<div class="space-y-6 max-w-4xl">
+
+  <div class="p-4 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-sm text-blue-800 dark:text-blue-200">
+    <span class="material-symbols-outlined text-[18px] align-middle mr-1">info</span>
+    SQLite is the default and always works with no setup. Configuring and migrating to another
+    database is copy-only — SQLite stays live until you perform the documented cut-over, so a failed
+    migration never affects the running app.
+  </div>
+
+  <section class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm p-5">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-sm font-semibold">Provider</h2>
+      <span class="text-xs text-zinc-500">Active target: <span class="font-mono font-semibold">{{ active }}</span></span>
+    </div>
+
+    <form method="post" action="{{ url_for('admin.database') }}" class="space-y-4 text-sm">
+      <div class="space-y-1.5 max-w-xs">
+        <label class="{{ lbl }}">Database provider</label>
+        <select name="provider" id="provider-select" class="{{ field }}">
+          {% for p in providers %}
+            <option value="{{ p.id }}" {% if p.id == active %}selected{% endif %} {% if not p.available %}data-unavailable="1"{% endif %}>
+              {{ p.label }}{% if not p.available %} (driver not installed){% endif %}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      {% for p in providers %}
+        <div class="provider-fields grid grid-cols-1 sm:grid-cols-2 gap-3" data-provider="{{ p.id }}" {% if p.id != active %}style="display:none"{% endif %}>
+          {% if p.id == 'sqlite' %}
+            <p class="text-xs text-zinc-500 sm:col-span-2">SQLite needs no connection details — it's the built-in default database.</p>
+          {% else %}
+            {% for fld in p.fields %}
+              <div class="space-y-1.5">
+                <label class="{{ lbl }}">{{ field_labels.get(fld, fld) }}
+                  {% if fld == 'password' and p.password_set %}<span class="text-emerald-500 font-normal">(set — blank keeps it)</span>{% endif %}
+                </label>
+                <input name="cfg_{{ fld }}" type="{{ 'password' if fld == 'password' else 'text' }}"
+                       value="{{ p.config.get(fld, '') if fld != 'password' else '' }}"
+                       {% if fld == 'port' %}inputmode="numeric" placeholder="{{ '' }}"{% endif %}
+                       class="{{ field }}">
+              </div>
+            {% endfor %}
+          {% endif %}
+        </div>
+      {% endfor %}
+
+      <div class="flex flex-wrap gap-2 pt-1">
+        <button type="submit" name="action" value="test" class="h-9 px-4 rounded-lg border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 font-medium">
+          <span class="material-symbols-outlined text-[16px] align-middle mr-1">wifi_tethering</span>Test connection
+        </button>
+        <button type="submit" name="action" value="save" class="h-9 px-4 rounded-lg bg-brand-600 hover:bg-brand-700 text-white font-medium">Save configuration</button>
+        <button type="submit" name="action" value="migrate"
+                onclick="return confirm('Start migrating all data from SQLite to the selected database?');"
+                class="h-9 px-4 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-medium ml-auto">
+          <span class="material-symbols-outlined text-[16px] align-middle mr-1">sync_alt</span>Migrate data →
+        </button>
+      </div>
+    </form>
+  </section>
+
+  {# ── Live migration progress ── #}
+  {% if run_id %}
+  <section class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm p-5" id="migration" data-run="{{ url_for('admin.database_progress', run_id=run_id) }}">
+    <h2 class="text-sm font-semibold mb-3">Migration progress</h2>
+    <div class="flex items-center gap-3 mb-3">
+      <span id="mig-state" class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-amber-600 dark:text-amber-400"><span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>starting…</span>
+      <span id="mig-counts" class="text-xs text-zinc-500"></span>
+    </div>
+    <div class="w-full h-2 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
+      <div id="mig-bar" class="h-full bg-brand-500 transition-all" style="width:0%"></div>
+    </div>
+    <pre id="mig-log" class="mt-4 max-h-64 overflow-y-auto text-[11px] font-mono bg-zinc-50 dark:bg-zinc-950/40 rounded-lg p-3 text-zinc-600 dark:text-zinc-300"></pre>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Show only the selected provider's fields.
+  (function () {
+    const sel = document.getElementById('provider-select');
+    function sync() {
+      document.querySelectorAll('.provider-fields').forEach(function (el) {
+        el.style.display = (el.dataset.provider === sel.value) ? '' : 'none';
+      });
+    }
+    sel.addEventListener('change', sync); sync();
+  })();
+
+  // Poll migration progress.
+  (function () {
+    const box = document.getElementById('migration');
+    if (!box) return;
+    const url = box.dataset.run;
+    const bar = document.getElementById('mig-bar');
+    const state = document.getElementById('mig-state');
+    const counts = document.getElementById('mig-counts');
+    const logEl = document.getElementById('mig-log');
+    const COLORS = {completed:'bg-emerald-500 text-emerald-600', failed:'bg-rose-500 text-rose-600', running:'bg-amber-500 text-amber-600', starting:'bg-amber-500 text-amber-600'};
+    function tick() {
+      fetch(url).then(r => r.json()).then(function (d) {
+        if (!d.ok) { state.textContent = d.error || 'unknown run'; return; }
+        const pct = d.tables_total ? Math.round(d.tables_done / d.tables_total * 100) : 0;
+        bar.style.width = pct + '%';
+        state.innerHTML = '<span class="w-2 h-2 rounded-full ' + (COLORS[d.state]||'bg-zinc-400').split(' ')[0] + '"></span>' + d.state;
+        counts.textContent = d.tables_done + '/' + d.tables_total + ' tables · ' + d.rows_copied + ' rows' + (d.current ? ' · ' + d.current : '');
+        logEl.textContent = (d.log || []).join('\n');
+        logEl.scrollTop = logEl.scrollHeight;
+        if (d.state !== 'completed' && d.state !== 'failed') setTimeout(tick, 1000);
+      }).catch(() => setTimeout(tick, 2000));
+    }
+    tick();
+  })();
+</script>
+{% endblock %}

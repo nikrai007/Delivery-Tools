@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Access · {{ tool.name }} · {{ platform_name }}{% endblock %}
+{% block page_title %}Tool access — {{ tool.name }}{% endblock %}
+
+{% block content %}
+<form method="post" action="{{ url_for('portal_admin.tool_access', tool_id=tool.id) }}" class="max-w-2xl space-y-6">
+
+  <section class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm p-6 space-y-5">
+    <div>
+      <h2 class="text-sm font-semibold">Who can see this tool?</h2>
+      <p class="text-xs text-zinc-500 mt-0.5">Team-gated tools appear only for members of the teams you grant here.</p>
+    </div>
+
+    <label class="inline-flex items-center gap-2 text-sm">
+      <input type="checkbox" name="requires_team" id="requires_team" value="1"
+             class="rounded text-brand-600 focus:ring-brand-500"
+             {% if tool.requires_team %}checked{% endif %} onchange="gateChanged()">
+      Restrict to specific teams
+    </label>
+
+    <div id="team-scope" class="space-y-4 {% if not tool.requires_team %}opacity-50 pointer-events-none{% endif %}">
+      <div class="space-y-2">
+        <label class="flex items-center gap-2 text-sm">
+          <input type="radio" name="scope" value="all" class="text-brand-600 focus:ring-brand-500"
+                 {% if grant_all or not grants %}checked{% endif %} onchange="scopeChanged()">
+          <span>All teams</span>
+        </label>
+        <label class="flex items-center gap-2 text-sm">
+          <input type="radio" name="scope" value="specific" class="text-brand-600 focus:ring-brand-500"
+                 {% if grants and not grant_all %}checked{% endif %} onchange="scopeChanged()">
+          <span>Selected teams only</span>
+        </label>
+      </div>
+
+      <div id="team-list" class="border-t border-zinc-100 dark:border-zinc-800 pt-4 {% if grant_all or not grants %}hidden{% endif %}">
+        {% if teams %}
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {% for team in teams %}
+              <label class="flex items-center gap-2 text-sm px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/40">
+                <input type="checkbox" name="team_ids" value="{{ team.id }}"
+                       class="rounded text-brand-600 focus:ring-brand-500"
+                       {% if team.id in grants %}checked{% endif %}>
+                <span class="truncate">{{ team.name }}</span>
+              </label>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="text-xs text-zinc-500">No teams exist yet. Create teams first under <a href="{{ url_for('teams.admin_teams') }}" class="text-brand-600 hover:underline">Teams</a>.</p>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+
+  <div class="flex items-center gap-3">
+    <button type="submit"
+            class="inline-flex items-center gap-1.5 h-10 px-5 bg-gradient-to-b from-brand-500 to-brand-700 text-white text-sm font-semibold rounded-lg shadow-sm shadow-brand-500/25 hover:-translate-y-0.5 transition-all">
+      <span class="material-symbols-outlined text-[18px]">save</span> Save access
+    </button>
+    <a href="{{ url_for('portal_admin.tools') }}"
+       class="inline-flex items-center h-10 px-5 text-sm font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800/60 transition-colors">
+      Cancel
+    </a>
+  </div>
+</form>
+
+<script>
+  function gateChanged() {
+    var on = document.getElementById('requires_team').checked;
+    var scope = document.getElementById('team-scope');
+    scope.classList.toggle('opacity-50', !on);
+    scope.classList.toggle('pointer-events-none', !on);
+  }
+  function scopeChanged() {
+    var specific = document.querySelector('input[name="scope"]:checked').value === 'specific';
+    document.getElementById('team-list').classList.toggle('hidden', !specific);
+  }
+</script>
+{% endblock %}

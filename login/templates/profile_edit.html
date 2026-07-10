@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}Edit profile · {{ platform_name }}{% endblock %}
+{% block page_title %}Edit profile{% endblock %}
+
+{% block content %}
+<form method="post" action="{{ url_for('auth.profile_edit') }}" enctype="multipart/form-data" class="max-w-2xl space-y-6">
+
+  {# ── Avatar ─────────────────────────────────────────────── #}
+  <section class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm p-6 space-y-4">
+    <h2 class="text-sm font-semibold">Profile photo</h2>
+    <div class="flex items-center gap-5">
+      {% if avatar_url %}
+        <img src="{{ avatar_url }}" alt="" class="h-16 w-16 rounded-full object-cover ring-2 ring-brand-500/30">
+      {% else %}
+        <span class="h-16 w-16 rounded-full bg-brand-600 text-white flex items-center justify-center text-2xl font-semibold">
+          {{ current_user.username[:1]|upper }}
+        </span>
+      {% endif %}
+      <div class="flex-1">
+        <input type="file" name="avatar" accept=".png,.jpg,.jpeg,.webp,.gif"
+               class="block w-full text-sm text-zinc-500 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100">
+        <p class="text-[11px] text-zinc-400 mt-1">PNG, JPG, WEBP or GIF · up to 5 MB.</p>
+        {% if avatar_url %}
+          <label class="inline-flex items-center gap-2 mt-2 text-xs text-zinc-500">
+            <input type="checkbox" name="remove_avatar" value="1" class="rounded text-rose-600 focus:ring-rose-500">
+            Remove current photo
+          </label>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+
+  {# ── Details ────────────────────────────────────────────── #}
+  <section class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm p-6 space-y-5">
+    <h2 class="text-sm font-semibold">Details</h2>
+    <div>
+      <label class="block text-xs font-medium text-zinc-500 mb-1">Full name</label>
+      <input type="text" name="full_name" required value="{{ current_user.full_name or '' }}"
+             class="w-full rounded-lg border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 text-sm focus:border-brand-500 focus:ring-brand-500">
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-zinc-500 mb-1">Email</label>
+      <input type="email" name="email" required value="{{ current_user.email or '' }}"
+             class="w-full rounded-lg border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 text-sm focus:border-brand-500 focus:ring-brand-500">
+    </div>
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="block text-xs font-medium text-zinc-500 mb-1">Username</label>
+        <input type="text" value="{{ current_user.username }}" readonly
+               class="w-full rounded-lg border-zinc-200 dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-800/60 text-sm text-zinc-500">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-zinc-500 mb-1">Employee code</label>
+        <input type="text" value="{{ current_user.employee_code or '—' }}" readonly
+               class="w-full rounded-lg border-zinc-200 dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-800/60 text-sm text-zinc-500">
+      </div>
+    </div>
+  </section>
+
+  {# ── Password (optional) ────────────────────────────────── #}
+  <section class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm p-6 space-y-5">
+    <h2 class="text-sm font-semibold">Change password <span class="text-zinc-400 font-normal">(optional)</span></h2>
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="block text-xs font-medium text-zinc-500 mb-1">New password</label>
+        <input type="password" name="password" autocomplete="new-password"
+               class="w-full rounded-lg border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 text-sm focus:border-brand-500 focus:ring-brand-500">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-zinc-500 mb-1">Confirm password</label>
+        <input type="password" name="confirm" autocomplete="new-password"
+               class="w-full rounded-lg border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 text-sm focus:border-brand-500 focus:ring-brand-500">
+      </div>
+    </div>
+    <p class="text-[11px] text-zinc-400">Leave blank to keep your current password.</p>
+  </section>
+
+  <div class="flex items-center gap-3">
+    <button type="submit"
+            class="inline-flex items-center gap-1.5 h-10 px-5 bg-gradient-to-b from-brand-500 to-brand-700 text-white text-sm font-semibold rounded-lg shadow-sm shadow-brand-500/25 hover:-translate-y-0.5 transition-all">
+      <span class="material-symbols-outlined text-[18px]">save</span> Save changes
+    </button>
+    <a href="{{ url_for('auth.profile') }}"
+       class="inline-flex items-center h-10 px-5 text-sm font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800/60 transition-colors">
+      Cancel
+    </a>
+  </div>
+</form>
+{% endblock %}

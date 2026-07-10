@@ -1,0 +1,179 @@
+{# ============================================================================
+   XPM Automator — shared UI macros.
+   One source of truth for the tool's chrome (header + sub-nav), status styling
+   and small building blocks, so every page is pixel-consistent and aligned.
+   ============================================================================ #}
+
+{# Tool sub-navigation pills — identical on every page, active item derived from
+   the current endpoint so nothing is ever mis-highlighted. #}
+{% macro subnav() %}
+  {% set items = [
+    ('xpm.dashboard',  'Dashboard',          'dashboard',      ['xpm.dashboard']),
+    ('xpm.new_run',    'New upload',         'cloud_upload',   ['xpm.new_run']),
+    ('xpm.history',    'History',            'history',        ['xpm.history','xpm.detail','xpm.run_status']),
+    ('xpm.explorer',   'Batch explorer',     'travel_explore', ['xpm.explorer'])
+  ] %}
+  <nav class="flex items-center gap-1 p-1 rounded-xl bg-zinc-100 dark:bg-zinc-800/60 border border-zinc-200/70 dark:border-zinc-800 overflow-x-auto max-w-full">
+    {% for ep, label, icon, match in items %}
+      {% set active = request.endpoint in match %}
+      <a href="{{ url_for(ep) }}"
+         class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap
+                {% if active %}bg-white dark:bg-zinc-900 text-brand-600 dark:text-brand-300 shadow-sm ring-1 ring-black/5 dark:ring-white/5
+                {% else %}text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200{% endif %}">
+        <span class="material-symbols-outlined text-[18px]">{{ icon }}</span>
+        <span class="hidden md:inline">{{ label }}</span>
+      </a>
+    {% endfor %}
+  </nav>
+{% endmacro %}
+
+{# Page header: brand-tinted icon tile + title + subtitle. Pairs with subnav on
+   one aligned row (stacks cleanly on mobile). #}
+{% macro page_header(title, subtitle, icon='cloud_sync') %}
+  <div class="flex items-start gap-3 min-w-0">
+    <div class="h-11 w-11 shrink-0 rounded-xl bg-gradient-to-br from-brand-500/20 to-brand-500/5
+                ring-1 ring-brand-500/25 flex items-center justify-center text-brand-600 dark:text-brand-300">
+      <span class="material-symbols-outlined text-[24px]">{{ icon }}</span>
+    </div>
+    <div class="min-w-0">
+      <h1 class="text-lg font-semibold tracking-tight leading-tight truncate">{{ title }}</h1>
+      <p class="text-sm text-zinc-500 leading-snug">{{ subtitle }}</p>
+    </div>
+  </div>
+{% endmacro %}
+
+{# Full header row: header (left) + subnav (right), consistently aligned. #}
+{% macro toolbar(title, subtitle, icon='cloud_sync') %}
+  <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+    {{ page_header(title, subtitle, icon) }}
+    {{ subnav() }}
+  </div>
+{% endmacro %}
+
+{% macro status_badge(status) %}
+  {%- set map = {
+    'uploaded':   'bg-sky-100 text-sky-700 ring-sky-200 dark:bg-sky-500/10 dark:text-sky-300 dark:ring-sky-500/20',
+    'processing': 'bg-amber-100 text-amber-700 ring-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/20',
+    'completed':  'bg-emerald-100 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/20',
+    'failed':     'bg-rose-100 text-rose-700 ring-rose-200 dark:bg-rose-500/10 dark:text-rose-300 dark:ring-rose-500/20',
+    'cancelled':  'bg-zinc-100 text-zinc-600 ring-zinc-200 dark:bg-zinc-500/10 dark:text-zinc-300 dark:ring-zinc-500/20'
+  } -%}
+  {%- set icons = {'uploaded':'cloud_upload','processing':'progress_activity','completed':'check_circle','failed':'error','cancelled':'cancel'} -%}
+  {%- set labels = {'uploaded':'Uploaded','processing':'Processing','completed':'Completed','failed':'Failed','cancelled':'Cancelled'} -%}
+  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ring-1 {{ map.get(status, 'bg-zinc-100 text-zinc-700 ring-zinc-200') }}">
+    <span class="material-symbols-outlined text-[13px] {% if status=='processing' %}animate-spin{% endif %}">{{ icons.get(status, 'help') }}</span>
+    {{ labels.get(status, status) }}
+  </span>
+{% endmacro %}
+
+{% macro batch_pill(value) %}
+  <code class="inline-block font-mono text-xs bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded-md text-brand-600 dark:text-brand-300 ring-1 ring-inset ring-zinc-200/70 dark:ring-zinc-700/70">{{ value }}</code>
+{% endmacro %}
+
+{# ── Shared "Fetch from XPM" project/process picker behaviour ──────────────────
+   One implementation used by BOTH the Upload form and the Batch Explorer, so the
+   selection experience is identical everywhere (issue: consistency + DRY).
+   Requires, inside the form `form_id`:
+     input[name=base_url], input[name=username], input[name=password],
+     #fetchProjects, #projectSelect, #processSelect, #projectId, #projectHint
+   Reuses the existing POST /api/projects and /api/processes endpoints. #}
+{% macro config_picker_js(form_id) %}
+<script>
+(function () {
+  const form = document.getElementById('{{ form_id }}');
+  if (!form) return;
+  const fetchBtn = document.getElementById('fetchProjects');
+  const projectSelect = document.getElementById('projectSelect');
+  const processSelect = document.getElementById('processSelect');
+  const projectId = document.getElementById('projectId');
+  const projectHint = document.getElementById('projectHint');
+  if (!fetchBtn || !projectSelect || !processSelect || !projectId) return;
+
+  const val = n => (form.elements[n] ? form.elements[n].value : '');
+  function creds() {
+    return { base_url: val('base_url').trim(), username: val('username').trim(),
+             password: val('password'), project_id: projectId.value };
+  }
+  function setHint(msg, tone) {
+    if (!projectHint) return;
+    projectHint.textContent = msg;
+    projectHint.className = 'block mt-1 text-[11px] ' +
+      (tone === 'err' ? 'text-rose-500' : tone === 'ok' ? 'text-emerald-600' : 'text-zinc-400');
+  }
+  function syncProjectId() {
+    const opt = projectSelect.selectedOptions[0];
+    if (opt && opt.dataset.id) projectId.value = opt.dataset.id;
+  }
+
+  async function fetchProjects() {
+    const c = creds();
+    if (!c.base_url || !c.username) { setHint('Enter the URL and username first.', 'err'); return; }
+    if (!c.password) { setHint('Enter the password first.', 'err'); return; }
+    const orig = fetchBtn.innerHTML;
+    fetchBtn.disabled = true;
+    fetchBtn.setAttribute('aria-busy', 'true');
+    fetchBtn.innerHTML = '<span class="material-symbols-outlined text-[14px] animate-spin">progress_activity</span>Fetching…';
+    setHint('Contacting XPM…');
+    try {
+      const r = await fetch('{{ url_for("xpm.api_projects") }}', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(c),
+      });
+      const j = await r.json();
+      if (!j.ok) { setHint(j.error || 'Failed to fetch projects.', 'err'); return; }
+      const cur = projectSelect.value;
+      projectSelect.innerHTML = '';
+      j.projects.forEach(p => {
+        const o = document.createElement('option');
+        o.value = p.name; o.textContent = p.name; o.dataset.id = p.id;
+        if (p.name === cur) o.selected = true;
+        projectSelect.appendChild(o);
+      });
+      setHint(j.projects.length + ' project(s) loaded — pick one.', 'ok');
+      syncProjectId();
+      fetchProcesses();
+    } catch (e) {
+      setHint('Network error — is the VPN connected?', 'err');
+    } finally {
+      fetchBtn.disabled = false; fetchBtn.removeAttribute('aria-busy'); fetchBtn.innerHTML = orig;
+    }
+  }
+
+  async function fetchProcesses() {
+    const c = creds();
+    if (!c.password || !c.project_id) return;
+    const prev = processSelect.value;
+    // Preserve an optional "All …" sentinel option (used by the explorer as a
+    // grid filter). Upload has no such option, so it's unaffected.
+    const allOpt = processSelect.querySelector('option[data-all]');
+    const keepAll = allOpt ? allOpt.cloneNode(true) : null;
+    processSelect.disabled = true;
+    processSelect.innerHTML = '<option>Loading…</option>';
+    try {
+      const r = await fetch('{{ url_for("xpm.api_processes") }}', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(c),
+      });
+      const j = await r.json();
+      processSelect.innerHTML = '';
+      if (keepAll) processSelect.appendChild(keepAll);
+      const names = (j.ok && j.processes && j.processes.length) ? j.processes.map(p => p.name) : (keepAll ? [] : [prev]);
+      names.forEach(name => {
+        const o = document.createElement('option');
+        o.value = name; o.textContent = name;
+        if (name === prev) o.selected = true;
+        processSelect.appendChild(o);
+      });
+    } catch (e) {
+      processSelect.innerHTML = '';
+      if (keepAll) processSelect.appendChild(keepAll);
+      else { const o = document.createElement('option'); o.value = prev; o.textContent = prev; processSelect.appendChild(o); }
+    } finally {
+      processSelect.disabled = false;
+      processSelect.dispatchEvent(new Event('change'));  // let hosts react (e.g. grid filter)
+    }
+  }
+
+  fetchBtn.addEventListener('click', fetchProjects);
+  projectSelect.addEventListener('change', () => { syncProjectId(); fetchProcesses(); });
+})();
+</script>
+{% endmacro %}

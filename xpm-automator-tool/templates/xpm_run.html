@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+{% from "xpm_macros.html" import status_badge, toolbar %}
+{% block title %}Run {{ run.batch_number }} · XPM Automator{% endblock %}
+{% block page_title %}XPM Automator{% endblock %}
+
+{% block content %}
+{{ toolbar('Run status', 'Live progress for this run', 'bolt') }}
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6" data-run-id="{{ run.id }}"
+     data-status-url="{{ url_for('xpm.run_status_json', run_id=run.id) }}" id="runRoot">
+
+  <div class="lg:col-span-2 space-y-5">
+    {# ─── Batch number + progress ──────────────────────────────────────── #}
+    <section class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm p-5">
+      <div class="flex flex-wrap items-start justify-between gap-4 mb-5">
+        <div class="min-w-0">
+          <p class="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold mb-1.5">Batch Number</p>
+          <form id="batchForm" method="post" action="{{ url_for('xpm.edit_batch_number', run_id=run.id) }}"
+                class="flex items-center gap-2 flex-wrap">
+            <input name="final_batch_number" id="batchInput"
+                   value="{{ run.final_batch_number or run.batch_number }}"
+                   class="h-9 px-3 font-mono text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg w-full sm:w-72 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+            <button type="submit"
+                    class="h-9 px-3 inline-flex items-center gap-1 rounded-lg border border-zinc-300 dark:border-zinc-700 text-xs font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+              <span class="material-symbols-outlined text-[15px]">save</span>Save
+            </button>
+            <span id="batchSaved" class="hidden text-xs text-emerald-600 font-medium inline-flex items-center gap-0.5"><span class="material-symbols-outlined text-[14px]">check</span>Saved</span>
+          </form>
+          <p class="mt-1.5 text-[11px] text-zinc-400">Generated <code class="font-mono">{{ run.batch_number }}</code> · downloads use this as the filename.</p>
+        </div>
+        <div id="statusBadge">{{ status_badge(run.status) }}</div>
+      </div>
+
+      <div class="flex items-center justify-between text-sm mb-2">
+        <span id="phaseMsg" class="font-medium text-zinc-700 dark:text-zinc-300 truncate pr-3">{{ run.remarks or 'Starting…' }}</span>
+        <span id="pctText" class="tabular-nums text-zinc-500 shrink-0">0%</span>
+      </div>
+      <div class="h-2.5 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
+        <div id="pctBar" class="h-full bg-gradient-to-r from-brand-500 to-brand-400 transition-all duration-300" style="width:0%"></div>
+      </div>
+
+      <div class="mt-5 flex flex-wrap gap-2">
+        <a id="downloadBtn" href="{{ url_for('xpm.download', run_id=run.id) }}"
+           class="hidden h-10 px-4 items-center gap-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium shadow-sm shadow-emerald-500/25 transition-all hover:-translate-y-0.5">
+          <span class="material-symbols-outlined text-[18px]">download</span>Download script
+        </a>
+        <form id="cancelForm" method="post" action="{{ url_for('xpm.cancel_run', run_id=run.id) }}" class="inline">
+          <button type="submit"
+                  class="h-10 px-4 inline-flex items-center gap-2 rounded-lg border border-rose-300 dark:border-rose-800 text-rose-600 text-sm font-medium hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors">
+            <span class="material-symbols-outlined text-[18px]">cancel</span>Cancel run
+          </button>
+        </form>
+        <a href="{{ url_for('xpm.detail', run_id=run.id) }}"
+           class="h-10 px-4 inline-flex items-center gap-2 rounded-lg border border-zinc-300 dark:border-zinc-700 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+          <span class="material-symbols-outlined text-[18px]">description</span>Full detail
+        </a>
+      </div>
+    </section>
+
+    {# ─── Files (upload mode) ──────────────────────────────────────────── #}
+    {% if run.mode != 'batch_download' %}
+    <section class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm overflow-hidden">
+      <div class="px-5 py-4 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
+        <h3 class="text-sm font-semibold">Files <span class="text-zinc-400 font-normal">({{ files|length }})</span></h3>
+        <span id="fileProgress" class="text-xs text-zinc-400 tabular-nums"></span>
+      </div>
+      <ul id="fileRows" class="divide-y divide-zinc-100 dark:divide-zinc-800">
+        {% for f in files %}
+          <li class="flex items-center gap-3 px-5 py-2.5" data-file="{{ f.filename }}">
+            <span class="text-[10px] font-mono text-zinc-400 w-5 text-right tabular-nums">{{ f.ordinal }}</span>
+            <span class="file-icon material-symbols-outlined text-[18px] text-zinc-400">schedule</span>
+            <span class="flex-1 min-w-0 truncate text-sm font-mono">{{ f.filename }}</span>
+            <span class="file-status text-xs font-medium text-zinc-400">pending</span>
+          </li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% else %}
+    <section class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm p-5">
+      <h3 class="text-sm font-semibold mb-2">Batch range download</h3>
+      <p class="text-sm text-zinc-500">Merging batches
+        <code class="font-mono text-brand-600 dark:text-brand-300">#{{ run.batch_from }}</code> →
+        <code class="font-mono text-brand-600 dark:text-brand-300">#{{ run.batch_to }}</code> into a single script.</p>
+    </section>
+    {% endif %}
+  </div>
+
+  {# ─── Live timeline ───────────────────────────────────────────────────── #}
+  <aside class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm flex flex-col max-h-[72vh] lg:sticky lg:top-24 self-start">
+    <div class="px-5 py-4 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
+      <h3 class="text-sm font-semibold">Activity log</h3>
+      <span id="liveDot" class="flex items-center gap-1.5 text-[11px] text-emerald-600 font-medium">
+        <span class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>live
+      </span>
+    </div>
+    <ol id="timeline" class="flex-1 overflow-y-auto p-4 space-y-2 text-xs font-mono min-h-[12rem]"></ol>
+  </aside>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const root = document.getElementById('runRoot');
+  const url = root.dataset.statusUrl;
+  const pctBar = document.getElementById('pctBar');
+  const pctText = document.getElementById('pctText');
+  const phaseMsg = document.getElementById('phaseMsg');
+  const statusBadge = document.getElementById('statusBadge');
+  const timeline = document.getElementById('timeline');
+  const downloadBtn = document.getElementById('downloadBtn');
+  const cancelForm = document.getElementById('cancelForm');
+  const liveDot = document.getElementById('liveDot');
+  const fileProgress = document.getElementById('fileProgress');
+
+  const BADGES = {
+    uploaded:  ['bg-sky-100 text-sky-700 ring-sky-200 dark:bg-sky-500/10 dark:text-sky-300 dark:ring-sky-500/20','cloud_upload','Uploaded'],
+    processing:['bg-amber-100 text-amber-700 ring-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/20','progress_activity','Processing'],
+    completed: ['bg-emerald-100 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/20','check_circle','Completed'],
+    failed:    ['bg-rose-100 text-rose-700 ring-rose-200 dark:bg-rose-500/10 dark:text-rose-300 dark:ring-rose-500/20','error','Failed'],
+    cancelled: ['bg-zinc-100 text-zinc-600 ring-zinc-200 dark:bg-zinc-500/10 dark:text-zinc-300 dark:ring-zinc-500/20','cancel','Cancelled'],
+  };
+  const FILE_ICON = { pending:['schedule','text-zinc-400'], uploaded:['check_circle','text-emerald-500'], failed:['error','text-rose-500'] };
+  const LEVEL_COLOR = { info:'text-zinc-500 dark:text-zinc-400', warning:'text-amber-600 dark:text-amber-400', error:'text-rose-600 dark:text-rose-400', debug:'text-zinc-400' };
+
+  function badge(status) {
+    const b = BADGES[status] || ['bg-zinc-100 text-zinc-700 ring-zinc-200', 'help', status];
+    const spin = status === 'processing' ? 'animate-spin' : '';
+    return '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ring-1 ' + b[0] + '">' +
+           '<span class="material-symbols-outlined text-[13px] ' + spin + '">' + b[1] + '</span>' + b[2] + '</span>';
+  }
+  function escapeHtml(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
+
+  let lastSteps = 0;
+  function render(d) {
+    pctBar.style.width = d.percent + '%';
+    pctText.textContent = d.percent + '%';
+    phaseMsg.textContent = d.message || '';
+    statusBadge.innerHTML = badge(d.status);
+
+    let up = 0, fail = 0, total = (d.files || []).length;
+    (d.files || []).forEach(f => {
+      if (f.status === 'uploaded') up++; else if (f.status === 'failed') fail++;
+      const row = document.querySelector('[data-file="' + CSS.escape(f.name) + '"]');
+      if (!row) return;
+      const ic = FILE_ICON[f.status] || FILE_ICON.pending;
+      const iconEl = row.querySelector('.file-icon'), stEl = row.querySelector('.file-status');
+      iconEl.textContent = ic[0];
+      iconEl.className = 'file-icon material-symbols-outlined text-[18px] ' + ic[1];
+      stEl.textContent = f.status; stEl.className = 'file-status text-xs font-medium ' + ic[1]; stEl.title = f.error || '';
+    });
+    if (fileProgress && total) fileProgress.textContent = up + '/' + total + (fail ? ' · ' + fail + ' failed' : '');
+
+    const steps = d.steps || [];
+    for (let i = lastSteps; i < steps.length; i++) {
+      const s = steps[i];
+      const li = document.createElement('li');
+      li.className = 'flex gap-2 ' + (LEVEL_COLOR[s.level] || LEVEL_COLOR.info);
+      li.innerHTML = '<span class="text-zinc-400 shrink-0">' + (s.ts ? s.ts.slice(11, 19) : '') + '</span><span class="min-w-0 break-words">' + escapeHtml(s.message) + '</span>';
+      timeline.appendChild(li);
+    }
+    if (steps.length !== lastSteps) { lastSteps = steps.length; timeline.scrollTop = timeline.scrollHeight; }
+
+    if (d.can_download && downloadBtn) { downloadBtn.href = d.download_url; downloadBtn.classList.remove('hidden'); downloadBtn.classList.add('inline-flex'); }
+    if (d.done) { if (cancelForm) cancelForm.classList.add('hidden'); liveDot.innerHTML = '<span class="text-zinc-400">finished</span>'; }
+  }
+
+  let stop = false;
+  async function poll() {
+    if (stop) return;
+    try { const r = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } }); if (r.ok) { const d = await r.json(); render(d); if (d.done) { stop = true; return; } } } catch (e) {}
+    setTimeout(poll, 1500);
+  }
+  poll();
+
+  const batchForm = document.getElementById('batchForm'), batchSaved = document.getElementById('batchSaved');
+  batchForm.addEventListener('submit', async ev => {
+    ev.preventDefault();
+    try {
+      const r = await fetch(batchForm.action, { method: 'POST', body: new FormData(batchForm), headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+      const j = await r.json();
+      if (j.ok) { batchSaved.classList.remove('hidden'); batchSaved.classList.add('inline-flex'); setTimeout(() => { batchSaved.classList.add('hidden'); batchSaved.classList.remove('inline-flex'); }, 2000); }
+      else if (window.toast) toast(j.error || 'Could not save', true);
+    } catch (e) { batchForm.submit(); }
+  });
+})();
+</script>
+{% endblock %}
