@@ -1,0 +1,403 @@
+{% extends "base.html" %}
+{% import "rt_macros.html" as rt %}
+{% block page_title %}Release Tracker{% endblock %}
+
+{% block head_extra %}
+<style>
+  /* ---- Grid: sticky header, independent scroll ---- */
+  .rt-grid-wrap { max-height: 60vh; overflow: auto; }
+  .rt-grid { border-collapse: separate; border-spacing: 0; min-width: 1180px; }
+  .rt-grid thead th { position: sticky; top: 0; z-index: 5; backdrop-filter: blur(6px); }
+  .rt-grid th, .rt-grid td { white-space: nowrap; }
+  .rt-grid tbody tr { transition: background-color .12s; }
+  .rt-grid tbody tr:hover { background: rgb(244 244 245 / .7); }
+  .dark .rt-grid tbody tr:hover { background: rgb(39 39 42 / .55); }
+  .rt-grid td.rt-editable { position: relative; }
+  .rt-grid td.rt-editable input {
+    width: 100%; min-width: 92px; background: transparent; border: 1px solid transparent;
+    border-radius: .375rem; padding: .3rem .4rem; font: inherit; color: inherit;
+    border-bottom: 1px dashed rgb(161 161 170 / .45);
+  }
+  .rt-grid td.rt-editable input:hover { border-color: rgb(212 212 216 / .8); background: rgb(244 244 245 / .6); }
+  .dark .rt-grid td.rt-editable input:hover { background: rgb(39 39 42 / .6); }
+  .rt-grid td.rt-editable input:focus { outline: none; border: 1px solid rgb(99 102 241); background: rgb(238 242 255 / .6); }
+  .dark .rt-grid td.rt-editable input:focus { background: rgb(49 46 129 / .3); }
+  .rt-grid th.sortable { cursor: pointer; user-select: none; }
+  .rt-grid th.sortable:hover { color: rgb(79 70 229); }
+  .rt-mono { font-family: "JetBrains Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+  /* segmented control */
+  .rt-seg { display:inline-flex; padding:3px; gap:2px; border-radius:.6rem; background:rgb(244 244 245); border:1px solid rgb(228 228 231); }
+  .dark .rt-seg { background:rgb(24 24 27); border-color:rgb(63 63 70); }
+  .rt-seg button { padding:.3rem .7rem; border-radius:.45rem; font-size:.8rem; font-weight:600; color:rgb(113 113 122); transition:all .12s; }
+  .rt-seg button[aria-pressed="true"] { background:#fff; color:rgb(79 70 229); box-shadow:0 1px 2px rgb(0 0 0 / .08); }
+  .dark .rt-seg button[aria-pressed="true"] { background:rgb(49 46 129 / .5); color:rgb(199 210 254); box-shadow:none; }
+  /* skeleton */
+  .rt-skel { background: linear-gradient(90deg, rgb(228 228 231 / .5) 25%, rgb(228 228 231 / .9) 37%, rgb(228 228 231 / .5) 63%); background-size:400% 100%; animation: rt-shimmer 1.3s ease infinite; border-radius:.375rem; height:.85rem; }
+  .dark .rt-skel { background: linear-gradient(90deg, rgb(39 39 42 / .6) 25%, rgb(63 63 70 / .8) 37%, rgb(39 39 42 / .6) 63%); background-size:400% 100%; }
+  @keyframes rt-shimmer { 0%{background-position:100% 0} 100%{background-position:0 0} }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-5" id="rt-app"
+     data-has-project="{{ '1' if project else '0' }}"
+     data-project-id="{{ project.id if project else '' }}"
+     data-can-delete="{{ '1' if can_delete else '0' }}"
+     data-api-records="{{ url_for('rt.api_records') }}"
+     data-api-stats="{{ url_for('rt.api_stats') }}"
+     data-api-delete="{{ url_for('rt.api_delete') }}"
+     data-api-import="{{ url_for('rt.api_import') }}"
+     data-api-bulk="{{ url_for('rt.api_bulk_update') }}"
+     data-export="{{ url_for('rt.export') }}"
+     data-api-gaps="{{ url_for('rt.api_batch_gaps') }}"
+     data-export-gaps="{{ url_for('rt.export_batch_gaps') }}"
+     data-tpl-import="{{ url_for('rt.template', kind='import') }}"
+     data-tpl-bulk="{{ url_for('rt.template', kind='bulk') }}"
+     data-update-base="{{ url_for('rt.dashboard') }}">
+
+  {# ===================== Toolbar (project + actions) =====================
+     The tool name lives in the platform top-bar (page_title); this row is the
+     section toolbar — project context on the left, actions on the right. #}
+  <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+    <div class="flex items-center gap-3 min-w-0">
+      {% if projects %}
+        <div class="relative">
+          <select id="project-select"
+                  class="appearance-none pl-3.5 pr-9 py-2 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm font-semibold text-zinc-800 dark:text-zinc-100 focus:border-brand-400 focus:ring-2 focus:ring-brand-500/20">
+            {% for p in projects %}
+              <option value="{{ p.id }}" {% if project and p.id == project.id %}selected{% endif %}>{{ p.name }}</option>
+            {% endfor %}
+          </select>
+          <span class="material-symbols-outlined text-[18px] text-zinc-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none">expand_more</span>
+        </div>
+      {% endif %}
+      <p class="hidden md:block text-[13px] text-zinc-500 dark:text-zinc-400 truncate">Enhancement releases across CRM · SIT · UAT · PreProd · Production</p>
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+      {# Export as an interactive dropdown (Excel / CSV) — no native prompts. #}
+      <div class="relative" id="export-wrap">
+        <button type="button" id="btn-export"
+                class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-medium border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-200 hover:border-brand-400 hover:text-brand-600 shadow-sm transition-colors"
+                aria-haspopup="true" aria-expanded="false">
+          <span class="material-symbols-outlined text-[18px]">download</span>Export
+          <span class="material-symbols-outlined text-[16px] text-zinc-400">expand_more</span>
+        </button>
+        <div id="export-menu" class="hidden absolute right-0 top-full mt-1 w-52 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-lg z-50 overflow-hidden">
+          <p class="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Export current view</p>
+          <button type="button" data-fmt="xlsx" class="export-opt w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+            <span class="material-symbols-outlined text-[18px] text-emerald-600">table_chart</span> Excel workbook (.xlsx)
+          </button>
+          <button type="button" data-fmt="csv" class="export-opt w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+            <span class="material-symbols-outlined text-[18px] text-sky-600">description</span> CSV file (.csv)
+          </button>
+        </div>
+      </div>
+      {{ rt.toolbar_btn("Import", "upload_file", 'id=btn-import') }}
+      {{ rt.toolbar_btn("Bulk Update", "edit_note", 'id=btn-bulk') }}
+      {% if can_configure %}
+        <a href="{{ url_for('rt.config') }}"
+           class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-medium border border-brand-300 dark:border-brand-700/60 bg-brand-50/60 dark:bg-brand-900/20 text-brand-700 dark:text-brand-300 hover:border-brand-400 hover:bg-brand-50 transition-colors">
+          <span class="material-symbols-outlined text-[18px]">settings</span> Configuration
+        </a>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if not project %}
+    {# ======================= Empty state ======================= #}
+    <div class="rounded-2xl border border-dashed border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-12 text-center">
+      <div class="mx-auto h-16 w-16 rounded-2xl bg-brand-50 dark:bg-brand-900/25 flex items-center justify-center">
+        <span class="material-symbols-outlined text-brand-500 text-[34px]">database</span>
+      </div>
+      <h3 class="mt-4 text-lg font-semibold text-zinc-900 dark:text-zinc-100">No project configured yet</h3>
+      {% if can_configure %}
+        <p class="mt-1 text-sm text-zinc-500">Connect a project database to start tracking releases.</p>
+        <a href="{{ url_for('rt.config') }}"
+           class="mt-5 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-b from-brand-500 to-brand-700 shadow-md shadow-brand-500/25 hover:-translate-y-0.5 transition-all">
+          <span class="material-symbols-outlined text-[18px]">add_circle</span> Configure a project
+        </a>
+      {% else %}
+        <p class="mt-1 text-sm text-zinc-500">Ask an Admin or Team Lead to configure a project database.</p>
+      {% endif %}
+    </div>
+  {% else %}
+
+  {# ============================ KPI row ============================ #}
+  <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+    {% set kpis = [
+      ('total','Total Releases','inventory_2','text-zinc-500','bg-zinc-100 dark:bg-zinc-800'),
+      ('delivered_this_month','Delivered This Month','task_alt','text-emerald-600','bg-emerald-50 dark:bg-emerald-900/25'),
+      ('awaiting_prod','Awaiting Prod','pending','text-amber-600','bg-amber-50 dark:bg-amber-900/25'),
+      ('added_this_week','Added This Week','trending_up','text-sky-600','bg-sky-50 dark:bg-sky-900/25')
+    ] %}
+    {% for key,label,icon,color,chip in kpis %}
+      <div class="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 flex items-start justify-between">
+        <div>
+          <p class="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">{{ label }}</p>
+          <p class="mt-1.5 text-2xl font-semibold rt-mono text-zinc-900 dark:text-zinc-50" data-kpi="{{ key }}">—</p>
+        </div>
+        <div class="h-9 w-9 rounded-xl {{ chip }} flex items-center justify-center">
+          <span class="material-symbols-outlined text-[20px] {{ color }}">{{ icon }}</span>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+
+  {# ====================== Manual entry card ====================== #}
+  <form id="manual-form" class="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm overflow-hidden">
+    <button type="button" id="entry-toggle"
+            class="w-full flex items-center justify-between px-5 py-3.5 hover:bg-zinc-50 dark:hover:bg-zinc-800/40 transition-colors">
+      <span class="flex items-center gap-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+        <span class="material-symbols-outlined text-brand-500 text-[20px]">add_task</span> Add release record
+      </span>
+      <span class="material-symbols-outlined text-zinc-400 text-[22px] transition-transform" id="entry-chevron">expand_less</span>
+    </button>
+    <div id="entry-body" class="px-5 pb-5 pt-1 grid grid-cols-1 xl:grid-cols-3 gap-5">
+      {# left: identity fields #}
+      <div class="xl:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <label class="block">
+          <span class="rt-lbl">Enhancement / Case ID <span class="text-rose-500">*</span></span>
+          <input name="enhancement_id" required class="rt-in rt-mono" placeholder="ENH-1024">
+        </label>
+        <label class="block">
+          <span class="rt-lbl">Batch Number <span class="text-rose-500">*</span></span>
+          <input name="batch_number" required class="rt-in rt-mono" placeholder="84 or 84-90">
+        </label>
+        <label class="block sm:col-span-2">
+          <span class="rt-lbl">Release Mail Subject <span class="text-rose-500">*</span></span>
+          <input name="release_subject" required class="rt-in" placeholder="e.g. Payments release notes — Batch 84-90">
+        </label>
+        <div class="block">
+          <span class="rt-lbl">Category <span class="text-rose-500">*</span></span>
+          <input type="hidden" name="category" id="m-category" value="Release">
+          <div class="rt-seg mt-0.5" role="group" aria-label="Category">
+            {% for c in categories %}
+              <button type="button" data-cat="{{ c }}" aria-pressed="{{ 'true' if loop.first else 'false' }}">{{ c }}</button>
+            {% endfor %}
+          </div>
+        </div>
+        <label class="block hidden" id="m-other-wrap">
+          <span class="rt-lbl">Other Category <span class="text-rose-500">*</span></span>
+          <input name="other_category" class="rt-in" placeholder="Specify…">
+        </label>
+        <label class="block sm:col-span-2">
+          <span class="rt-lbl">Sent By <span class="text-rose-500">*</span></span>
+          <select name="sent_by" class="rt-in">
+            {% for o in sent_by_options %}
+              <option value="{{ o.value }}" {% if o.value == default_sent_by %}selected{% endif %}>{{ o.label }}</option>
+            {% endfor %}
+          </select>
+        </label>
+      </div>
+      {# right: environment dates panel #}
+      <div class="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-800/30 p-4">
+        <p class="text-[11px] font-semibold uppercase tracking-wider text-zinc-500 mb-3">Environment Dates</p>
+        <div class="space-y-2.5">
+          <div class="flex items-center justify-between gap-3">
+            <span class="text-xs font-medium text-zinc-600 dark:text-zinc-300">CRM Delivery <span class="text-rose-500">*</span></span>
+            <input name="crm_delivery_date" type="date" required value="{{ today }}" class="rt-in rt-mono !w-40 !py-1.5">
+          </div>
+          <div class="flex items-center justify-between gap-3">
+            <span class="text-xs font-medium text-zinc-600 dark:text-zinc-300">SIT Execution</span>
+            <input name="sit_date" type="date" class="rt-in rt-mono !w-40 !py-1.5">
+          </div>
+          <div class="flex items-center justify-between gap-3">
+            <span class="text-xs font-medium text-zinc-600 dark:text-zinc-300">UAT Execution</span>
+            <input name="uat_date" type="date" class="rt-in rt-mono !w-40 !py-1.5">
+          </div>
+          <div class="flex items-center justify-between gap-3">
+            <span class="text-xs font-medium text-zinc-600 dark:text-zinc-300">PreProd Execution</span>
+            <input name="preprod_date" type="date" class="rt-in rt-mono !w-40 !py-1.5">
+          </div>
+          <div class="flex items-center justify-between gap-3">
+            <span class="text-xs font-medium text-zinc-600 dark:text-zinc-300">Prod Live</span>
+            <input name="prod_live_date" type="date" class="rt-in rt-mono !w-40 !py-1.5">
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="px-5 pb-5 flex flex-wrap items-center gap-3">
+      <button type="submit"
+              class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-b from-brand-500 to-brand-700 shadow-md shadow-brand-500/25 hover:-translate-y-0.5 transition-all active:scale-[0.98]">
+        <span class="material-symbols-outlined text-[18px]">save</span> Add record(s)
+        <kbd class="ml-1 text-[10px] font-mono opacity-70 border border-white/30 rounded px-1">⌘↵</kbd>
+      </button>
+      <p class="text-xs text-zinc-400">A batch range like <span class="rt-mono text-zinc-500">84-90</span> creates one record per batch, copying every other field.</p>
+    </div>
+  </form>
+
+  {# ====================== Toolbar + grid ====================== #}
+  <div class="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm">
+    <div class="flex items-center justify-between px-5 py-3 border-b border-zinc-100 dark:border-zinc-800">
+      <div class="flex items-center gap-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+        <span class="material-symbols-outlined text-brand-500 text-[20px]">table_rows</span> Release records
+      </div>
+      <div class="flex items-center gap-2">
+        <button type="button" id="btn-gaps"
+                class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-amber-300 dark:border-amber-700/60 bg-amber-50/60 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 hover:border-amber-400 transition-colors">
+          <span class="material-symbols-outlined text-[16px]">rule</span> Missing batches
+        </button>
+        <button type="button" id="grid-toggle" title="Collapse / expand"
+                class="p-1.5 rounded-md text-zinc-400 hover:text-brand-600 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+          <span class="material-symbols-outlined text-[22px]" id="grid-chevron">expand_less</span>
+        </button>
+      </div>
+    </div>
+    <div id="grid-collapse">
+    <div class="p-4 flex flex-wrap items-center gap-3">
+      <div class="relative flex-1 min-w-[220px]">
+        <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-[20px]">search</span>
+        <input id="f-q" class="w-full pl-10 pr-8 py-2 rounded-xl border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 text-sm"
+               placeholder="Search ID, subject, batch, sent by, category…">
+        <kbd class="hidden sm:block absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-mono text-zinc-400 border border-zinc-300 dark:border-zinc-600 rounded px-1">/</kbd>
+      </div>
+      <button id="btn-filters" class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-medium border border-zinc-200 dark:border-zinc-700 hover:border-brand-400 transition-colors">
+        <span class="material-symbols-outlined text-[18px]">filter_list</span> Filters
+        <span id="filter-count" class="hidden text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-brand-600 text-white"></span>
+      </button>
+      <label class="inline-flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-300 cursor-pointer select-none">
+        <span class="relative inline-block w-9 h-5">
+          <input type="checkbox" id="f-group" checked class="peer sr-only">
+          <span class="absolute inset-0 rounded-full bg-zinc-300 dark:bg-zinc-700 peer-checked:bg-brand-500 transition-colors"></span>
+          <span class="absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white transition-transform peer-checked:translate-x-4"></span>
+        </span>
+        Group
+      </label>
+      <div class="flex-1"></div>
+      <button id="btn-delete" class="hidden inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-medium text-rose-600 border border-rose-200 dark:border-rose-800 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors">
+        <span class="material-symbols-outlined text-[18px]">delete</span> Delete <span id="sel-count"></span>
+      </button>
+      <select id="f-page-size" class="rounded-xl border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 text-sm">
+        {% for s in page_sizes %}<option value="{{ s }}">{{ s }} / page</option>{% endfor %}
+      </select>
+    </div>
+
+    <div id="filters-panel" class="hidden border-t border-zinc-100 dark:border-zinc-800 p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <label class="block"><span class="rt-lbl">Category</span>
+        <select id="f-category" class="rt-in"><option value="">Any</option>{% for c in categories %}<option>{{ c }}</option>{% endfor %}</select>
+      </label>
+      <label class="block"><span class="rt-lbl">Sent By</span>
+        <input id="f-sent-by" class="rt-in" list="sent-by-list" placeholder="Any">
+        <datalist id="sent-by-list"></datalist>
+      </label>
+      <label class="block"><span class="rt-lbl">Enhancement ID</span>
+        <input id="f-enh" class="rt-in" placeholder="Any">
+      </label>
+      <div class="grid grid-cols-2 gap-2">
+        <label class="block"><span class="rt-lbl">Batch ≥</span><input id="f-batch-from" type="number" class="rt-in rt-mono"></label>
+        <label class="block"><span class="rt-lbl">Batch ≤</span><input id="f-batch-to" type="number" class="rt-in rt-mono"></label>
+      </div>
+      <div class="grid grid-cols-2 gap-2 lg:col-span-2">
+        <label class="block"><span class="rt-lbl">CRM date from</span><input id="f-crm-from" type="date" class="rt-in rt-mono"></label>
+        <label class="block"><span class="rt-lbl">CRM date to</span><input id="f-crm-to" type="date" class="rt-in rt-mono"></label>
+      </div>
+      <div class="flex items-end gap-2">
+        <button id="btn-apply" class="px-4 py-2 rounded-xl text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 transition-colors">Apply</button>
+        <button id="btn-clear" class="px-4 py-2 rounded-xl text-sm font-medium border border-zinc-300 dark:border-zinc-700 hover:border-brand-400 transition-colors">Clear</button>
+      </div>
+    </div>
+
+    <div class="rt-grid-wrap border-t border-zinc-100 dark:border-zinc-800">
+      <table class="rt-grid w-full text-sm">
+        <thead class="bg-zinc-50/90 dark:bg-zinc-800/80 text-zinc-500 text-[11px] uppercase tracking-wider">
+          <tr>
+            <th class="px-3 py-3 w-10 text-left"><input type="checkbox" id="chk-all" class="rounded border-zinc-300 dark:border-zinc-600 text-brand-600"></th>
+            <th class="px-2 py-3 w-8"></th>
+            <th class="px-3 py-3 text-left sortable" data-sort="s_no">S.No</th>
+            {% for c in grid_columns %}
+              <th class="px-3 py-3 text-left {% if c.key != 'category' %}sortable{% endif %}" {% if c.key != 'category' %}data-sort="{{ c.key }}"{% endif %}>{{ c.label }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody id="grid-body" class="divide-y divide-zinc-100 dark:divide-zinc-800"></tbody>
+      </table>
+    </div>
+
+    <div class="p-4 flex flex-wrap items-center justify-between gap-3 border-t border-zinc-100 dark:border-zinc-800 text-sm">
+      <div class="text-zinc-500" id="page-info">—</div>
+      <div class="flex items-center gap-1">
+        <button id="pg-first" class="pg-btn" title="First">«</button>
+        <button id="pg-prev" class="pg-btn" title="Previous">‹</button>
+        <span id="pg-current" class="px-3 py-1.5 font-medium rt-mono">1</span>
+        <button id="pg-next" class="pg-btn" title="Next">›</button>
+        <button id="pg-last" class="pg-btn" title="Last">»</button>
+      </div>
+    </div>
+    </div>{# /grid-collapse #}
+  </div>
+  {% endif %}
+</div>
+
+{# ============================ Import / Bulk modal ============================ #}
+<div id="rt-modal" class="hidden fixed inset-0 z-[900] flex items-center justify-center p-4 bg-zinc-900/60 backdrop-blur-sm">
+  <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl w-full max-w-lg">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-zinc-100 dark:border-zinc-800">
+      <h3 id="modal-title" class="text-base font-semibold flex items-center gap-2"></h3>
+      <button id="modal-close" class="p-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800"><span class="material-symbols-outlined text-[20px]">close</span></button>
+    </div>
+    <div class="p-6 space-y-4">
+      <p id="modal-help" class="text-sm text-zinc-500"></p>
+      <a id="modal-template" href="#" class="inline-flex items-center gap-1.5 text-xs font-medium text-brand-600 hover:text-brand-700">
+        <span class="material-symbols-outlined text-[16px]">download</span> Download template
+      </a>
+      <label id="modal-drop" class="block rounded-xl border-2 border-dashed border-zinc-300 dark:border-zinc-700 hover:border-brand-400 transition-colors cursor-pointer p-6 text-center">
+        <span class="material-symbols-outlined text-[28px] text-zinc-400">cloud_upload</span>
+        <p class="text-sm text-zinc-500 mt-1"><span id="modal-filename" class="font-medium text-zinc-700 dark:text-zinc-200">Choose a CSV or Excel file</span></p>
+        <input id="modal-file" type="file" accept=".csv,.xlsx,.xlsm" class="hidden">
+      </label>
+      <div id="modal-result" class="hidden text-sm space-y-3"></div>
+    </div>
+    <div class="flex items-center justify-end gap-2 px-6 py-4 border-t border-zinc-100 dark:border-zinc-800">
+      <button id="modal-cancel" class="px-4 py-2 rounded-xl text-sm font-medium border border-zinc-300 dark:border-zinc-700 hover:border-brand-400 transition-colors">Close</button>
+      <button id="modal-submit" class="px-4 py-2 rounded-xl text-sm font-semibold text-white bg-gradient-to-b from-brand-500 to-brand-700 shadow-md shadow-brand-500/25 hover:-translate-y-0.5 transition-all inline-flex items-center gap-2">
+        <span class="material-symbols-outlined text-[18px]">upload</span> Upload
+      </button>
+    </div>
+  </div>
+</div>
+
+{# ============================ Missing batches modal ============================ #}
+<div id="gaps-modal" class="hidden fixed inset-0 z-[900] flex items-center justify-center p-4 bg-zinc-900/60 backdrop-blur-sm">
+  <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl w-full max-w-lg">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-zinc-100 dark:border-zinc-800">
+      <h3 class="text-base font-semibold flex items-center gap-2">
+        <span class="material-symbols-outlined text-[20px] text-amber-500">rule</span>Missing batch numbers
+      </h3>
+      <button id="gaps-close" class="p-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800"><span class="material-symbols-outlined text-[20px]">close</span></button>
+    </div>
+    <div class="p-6 space-y-4">
+      <p class="text-xs text-zinc-400">Gaps in the batch sequence between the lowest and highest uploaded batch number for this project.</p>
+      <div id="gaps-summary" class="text-sm text-zinc-600 dark:text-zinc-300">Loading…</div>
+      <div id="gaps-list" class="hidden flex flex-wrap gap-1.5 max-h-64 overflow-auto p-1"></div>
+    </div>
+    <div class="flex items-center justify-end gap-2 px-6 py-4 border-t border-zinc-100 dark:border-zinc-800">
+      <button id="gaps-cancel" class="px-4 py-2 rounded-xl text-sm font-medium border border-zinc-300 dark:border-zinc-700 hover:border-brand-400 transition-colors">Close</button>
+      <a id="gaps-export" href="#" class="px-4 py-2 rounded-xl text-sm font-semibold text-white bg-gradient-to-b from-amber-500 to-amber-600 shadow-md shadow-amber-500/25 hover:-translate-y-0.5 transition-all inline-flex items-center gap-2">
+        <span class="material-symbols-outlined text-[18px]">download</span> Export CSV
+      </a>
+    </div>
+  </div>
+</div>
+
+<div id="rt-toasts" class="fixed bottom-6 right-6 z-[950] space-y-2"></div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+  .rt-lbl { display:block; font-size:.7rem; font-weight:600; text-transform:uppercase; letter-spacing:.03em; color:rgb(113 113 122); margin-bottom:.25rem; }
+  .rt-in { width:100%; border-radius:.75rem; border:1px solid rgb(212 212 216); font-size:.875rem; padding:.5rem .625rem; background:#fff; color:inherit; }
+  .dark .rt-in { background:rgb(39 39 42); border-color:rgb(63 63 70); }
+  .rt-in:focus { outline:none; border-color:rgb(99 102 241); box-shadow:0 0 0 3px rgb(99 102 241 / .15); }
+  .pg-btn { padding:.35rem .6rem; border-radius:.5rem; border:1px solid rgb(212 212 216 / .8); font-family:"JetBrains Mono",monospace; }
+  .dark .pg-btn { border-color:rgb(63 63 70); }
+  .pg-btn:hover:not(:disabled) { border-color:rgb(99 102 241); color:rgb(79 70 229); }
+  .pg-btn:disabled { opacity:.4; cursor:not-allowed; }
+  .cat-badge { display:inline-flex; align-items:center; gap:.35rem; padding:.1rem .55rem; border-radius:9999px; font-size:.7rem; font-weight:600; }
+  .cat-dot { height:.45rem; width:.45rem; border-radius:9999px; }
+</style>
+{% if project %}
+<script>
+{% include "rt_dashboard_js.html" %}
+</script>
+{% endif %}
+{% endblock %}

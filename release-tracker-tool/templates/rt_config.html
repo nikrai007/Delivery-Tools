@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+{% import "rt_macros.html" as rt %}
+{% block page_title %}Release Tracker · Database Configuration{% endblock %}
+
+{% block content %}
+<div class="space-y-6 max-w-5xl">
+
+  {{ rt.page_header("Database Configuration",
+       "Configure a project database. On create, the connection is validated and the Release Tracker tables are provisioned automatically.",
+       "database") }}
+
+  <div class="rounded-xl border border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-900/15 px-4 py-3 flex items-start gap-3">
+    <span class="material-symbols-outlined text-amber-500 text-[20px]">shield_person</span>
+    <p class="text-sm text-amber-800 dark:text-amber-200">
+      This screen is restricted to <strong>Admins</strong> and <strong>Team Leads</strong>.
+      Connection passwords are encrypted at rest and never shown again after saving.
+    </p>
+  </div>
+
+  {# ---------------- New project form ---------------- #}
+  <form method="post" action="{{ url_for('rt.config_create') }}" id="cfg-form"
+        class="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm p-6 space-y-5">
+    <h3 class="text-base font-semibold text-zinc-900 dark:text-zinc-100">Create a new project</h3>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <label class="block">
+        <span class="text-xs font-semibold text-zinc-600 dark:text-zinc-400 uppercase tracking-wide">Project name <span class="text-rose-500">*</span></span>
+        <input name="name" required maxlength="120"
+               class="mt-1 w-full rounded-xl border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 text-sm"
+               placeholder="e.g. SBC-10x Enhancements">
+      </label>
+      <label class="block">
+        <span class="text-xs font-semibold text-zinc-600 dark:text-zinc-400 uppercase tracking-wide">Database provider <span class="text-rose-500">*</span></span>
+        <select name="provider" id="provider" required
+                class="mt-1 w-full rounded-xl border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 text-sm">
+          <option value="">Select…</option>
+          {% for p in providers %}
+            <option value="{{ p.id }}" data-fields="{{ p.fields|join(',') }}" data-port="{{ p.default_port or '' }}"
+                    {% if not p.available %}data-unavailable="1"{% endif %}>
+              {{ p.label }}{% if not p.available %} — driver not installed{% endif %}
+            </option>
+          {% endfor %}
+        </select>
+      </label>
+    </div>
+
+    {# Connection fields — shown/hidden per provider. #}
+    <div id="conn-fields" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <label class="block cfg-field" data-field="host">
+        <span class="text-xs font-semibold text-zinc-600 dark:text-zinc-400 uppercase tracking-wide">Host</span>
+        <input name="host" class="mt-1 w-full rounded-xl border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 text-sm" placeholder="db.internal.example.com">
+      </label>
+      <label class="block cfg-field" data-field="port">
+        <span class="text-xs font-semibold text-zinc-600 dark:text-zinc-400 uppercase tracking-wide">Port</span>
+        <input name="port" id="port" class="mt-1 w-full rounded-xl border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 text-sm" placeholder="5432">
+      </label>
+      <label class="block cfg-field" data-field="database">
+        <span class="text-xs font-semibold text-zinc-600 dark:text-zinc-400 uppercase tracking-wide" id="lbl-database">Database</span>
+        <input name="database" id="in-database" class="mt-1 w-full rounded-xl border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 text-sm" placeholder="release_tracker">
+      </label>
+      <label class="block cfg-field" data-field="service_name">
+        <span class="text-xs font-semibold text-zinc-600 dark:text-zinc-400 uppercase tracking-wide">Service Name</span>
+        <input name="service_name" class="mt-1 w-full rounded-xl border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 text-sm" placeholder="e.g. FREEPDB1 or myadb_high">
+      </label>
+      <label class="block cfg-field" data-field="username">
+        <span class="text-xs font-semibold text-zinc-600 dark:text-zinc-400 uppercase tracking-wide">Username</span>
+        <input name="username" autocomplete="off" class="mt-1 w-full rounded-xl border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 text-sm">
+      </label>
+      <label class="block cfg-field" data-field="password">
+        <span class="text-xs font-semibold text-zinc-600 dark:text-zinc-400 uppercase tracking-wide">Password</span>
+        <input name="password" type="password" autocomplete="new-password" class="mt-1 w-full rounded-xl border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 text-sm">
+      </label>
+      <label class="block cfg-field" data-field="extra">
+        <span class="text-xs font-semibold text-zinc-600 dark:text-zinc-400 uppercase tracking-wide">Extra (ODBC driver etc.)</span>
+        <input name="extra" class="mt-1 w-full rounded-xl border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 text-sm" placeholder="driver=ODBC Driver 18 for SQL Server">
+      </label>
+      <label class="block cfg-field" data-field="path">
+        <span class="text-xs font-semibold text-zinc-600 dark:text-zinc-400 uppercase tracking-wide">SQLite file path</span>
+        <input name="path" class="mt-1 w-full rounded-xl border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 text-sm" placeholder="/opt/data/release_tracker.db">
+      </label>
+    </div>
+
+    <p id="provider-hint" class="hidden text-xs text-zinc-500 dark:text-zinc-400 rounded-lg bg-zinc-50 dark:bg-zinc-800/50 px-3 py-2"></p>
+
+    <div class="flex flex-wrap items-center gap-3 pt-2">
+      <button type="button" id="btn-test"
+              class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 hover:border-brand-400 transition-colors">
+        <span class="material-symbols-outlined text-[18px]">wifi_tethering</span> Test connection
+      </button>
+      <button type="submit"
+              class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-b from-brand-500 to-brand-700 shadow-md shadow-brand-500/25 hover:-translate-y-0.5 transition-all active:scale-[0.98]">
+        <span class="material-symbols-outlined text-[18px]">add_circle</span> Create &amp; provision tables
+      </button>
+      <span id="test-result" class="text-sm"></span>
+    </div>
+  </form>
+
+  {# ---------------- Existing projects ---------------- #}
+  <div class="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm overflow-hidden">
+    <div class="px-6 py-4 border-b border-zinc-100 dark:border-zinc-800">
+      <h3 class="text-base font-semibold text-zinc-900 dark:text-zinc-100">Configured projects</h3>
+    </div>
+    {% if projects %}
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="bg-zinc-50 dark:bg-zinc-800/50 text-zinc-500 text-xs uppercase tracking-wide">
+            <tr>
+              <th class="text-left font-semibold px-6 py-3">Project</th>
+              <th class="text-left font-semibold px-6 py-3">Provider</th>
+              <th class="text-left font-semibold px-6 py-3">Target</th>
+              <th class="text-left font-semibold px-6 py-3">Table</th>
+              <th class="text-left font-semibold px-6 py-3">Created</th>
+              <th class="px-6 py-3"></th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-zinc-100 dark:divide-zinc-800">
+            {% for p in projects %}
+              <tr class="{% if not p.row.is_active %}opacity-50{% endif %}">
+                <td class="px-6 py-3 font-medium text-zinc-900 dark:text-zinc-100">{{ p.row.name }}</td>
+                <td class="px-6 py-3">{{ p.row.provider }}</td>
+                <td class="px-6 py-3 text-zinc-500">
+                  {% if p.cfg.host %}{{ p.cfg.host }}{% if p.cfg.port %}:{{ p.cfg.port }}{% endif %}/{{ p.cfg.database or '' }}
+                  {% elif p.cfg.path %}{{ p.cfg.path }}{% else %}—{% endif %}
+                </td>
+                <td class="px-6 py-3"><code class="text-xs">{{ p.row.table_name }}</code></td>
+                <td class="px-6 py-3 text-zinc-500">{{ (p.row.created_at or '')[:10] }}</td>
+                <td class="px-6 py-3 text-right">
+                  <a href="{{ url_for('rt.dashboard', project=p.row.id) }}"
+                     class="text-brand-600 hover:text-brand-700 text-xs font-medium mr-3">Open</a>
+                  <form method="post" action="{{ url_for('rt.config_delete', project_id=p.row.id) }}" class="inline"
+                        onsubmit="return confirm('Remove this project configuration? The external table itself is left intact.');">
+                    <button class="text-rose-600 hover:text-rose-700 text-xs font-medium">Remove</button>
+                  </form>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="px-6 py-12 text-center text-zinc-400 text-sm">No projects configured yet.</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const provider = document.getElementById('provider');
+  const portInput = document.getElementById('port');
+  const fields = Array.from(document.querySelectorAll('.cfg-field'));
+
+  const HINTS = {
+    oracle: 'Oracle connects by <strong>Service Name</strong> (Oracle Cloud / Autonomous DB and modern listeners) — enter it above. Use the SID field only for legacy instances. For Autonomous DB with a wallet, set the wallet via <code>TNS_ADMIN</code> on the server and use the TNS alias as the Service Name.',
+    mssql: 'SQL Server needs a system ODBC driver. Put the driver name in <strong>Extra</strong>, e.g. <code>driver=ODBC Driver 18 for SQL Server</code>.',
+    postgresql: 'Enter the target database name. TLS options can be appended in <strong>Extra</strong> if needed.',
+    mysql: 'Enter the target schema/database name.',
+    sqlite: 'A file-based database — provide an absolute path the server can write to. Handy for local trials.'
+  };
+  function applyProvider() {
+    const opt = provider.selectedOptions[0];
+    const val = opt ? opt.value : '';
+    const allowed = opt && opt.dataset.fields ? opt.dataset.fields.split(',') : [];
+    fields.forEach(f => { f.style.display = allowed.includes(f.dataset.field) ? '' : 'none'; });
+    if (opt && opt.dataset.port && !portInput.value) portInput.value = opt.dataset.port;
+    // Oracle: the generic "database" field is a legacy SID; relabel to avoid confusion.
+    const isOracle = val === 'oracle';
+    const dbLabel = document.getElementById('lbl-database');
+    const dbInput = document.getElementById('in-database');
+    if (dbLabel) dbLabel.textContent = isOracle ? 'SID (optional)' : 'Database';
+    if (dbInput) dbInput.placeholder = isOracle ? 'legacy SID — leave blank if using Service Name' : 'release_tracker';
+    // Provider hint
+    const hint = document.getElementById('provider-hint');
+    if (hint) {
+      if (val && HINTS[val]) { hint.innerHTML = HINTS[val]; hint.classList.remove('hidden'); }
+      else { hint.classList.add('hidden'); }
+    }
+    if (opt && opt.dataset.unavailable) {
+      showResult('This engine’s driver is not installed on the server — you can still save, but connection tests will fail until it is installed.', 'warn');
+    } else { showResult('', ''); }
+  }
+  function showResult(msg, kind) {
+    const el = document.getElementById('test-result');
+    el.textContent = msg;
+    el.className = 'text-sm ' + (kind === 'ok' ? 'text-emerald-600' : kind === 'warn' ? 'text-amber-600' : kind === 'err' ? 'text-rose-600' : '');
+  }
+  provider.addEventListener('change', applyProvider);
+  applyProvider();
+
+  document.getElementById('btn-test').addEventListener('click', async function () {
+    showResult('Testing…', '');
+    const fd = new FormData(document.getElementById('cfg-form'));
+    try {
+      const r = await fetch("{{ url_for('rt.config_test') }}", { method: 'POST', body: fd });
+      const j = await r.json();
+      showResult((j.ok ? '✔ ' : '✖ ') + (j.message || '') + (j.latency_ms != null ? '  (' + j.latency_ms + ' ms)' : ''),
+                 j.ok ? 'ok' : 'err');
+    } catch (e) { showResult('Test failed: ' + e, 'err'); }
+  });
+})();
+</script>
+{% endblock %}

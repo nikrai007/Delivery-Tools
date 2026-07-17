@@ -68,6 +68,16 @@ LANDING_TOOLS = [
         "endpoint": "xpm.dashboard",
     },
     {
+        "name": "Release Tracker",
+        "icon": "rocket_launch",
+        "desc": ("Track enhancement/case releases across CRM, SIT, UAT, PreProd and Production. "
+                 "Per-project databases, manual entry with batch-range expansion, import/export, "
+                 "bulk update, grouping and a full audit trail."),
+        "tags": ["Release", "Tracker", "Batch"],
+        "status": "live",
+        "endpoint": "rt.dashboard",
+    },
+    {
         "name": "FlowEngine Linter",
         "icon": "rule",
         "desc": "Static analysis for migration ordering and FK-chain safety before a release ships.",

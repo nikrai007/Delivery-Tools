@@ -43,6 +43,7 @@ _CODE_DIRS = [
     "query-generator-tool/source-code",
     "tool-3/source-code",
     "xpm-automator-tool/source-code",
+    "release-tracker-tool/source-code",
     "team-management/source-code",
     "portal-admin/source-code",
     "admin-console/source-code",
@@ -70,6 +71,8 @@ from qgen_routes import qgen_bp  # noqa: E402
 from tool3_routes import tool3_bp  # noqa: E402
 from xpm_routes import xpm_bp  # noqa: E402
 import xpm_store  # noqa: E402
+from rt_routes import rt_bp  # noqa: E402
+import rt_store  # noqa: E402
 from team_routes import teams_bp  # noqa: E402
 from portal_admin_routes import portal_admin_bp  # noqa: E402
 from admin_console_routes import admin_bp  # noqa: E402
@@ -123,6 +126,10 @@ def create_app() -> Flask:
     app.config["SECRET_KEY"]         = constants.SECRET_KEY
     app.config["MAX_CONTENT_LENGTH"] = constants.MAX_UPLOAD_MB * 1024 * 1024
     app.config["UPLOAD_ROOT"]        = str(constants.UPLOAD_ROOT)
+    # Always re-read templates from disk when they change, independent of debug.
+    # (Debug is off by default for security; without this a template edit would
+    # not appear until a full process restart.)
+    app.config["TEMPLATES_AUTO_RELOAD"] = True
 
     # Persist all logs (incl. unhandled-exception tracebacks behind the generic
     # 500 page) to Delivery-Tools/logs/app.log so production errors are
@@ -148,6 +155,9 @@ def create_app() -> Flask:
     # XPM Automator owns its own tables + registers its portal card (idempotent,
     # additive — no change to the platform schema or existing tools).
     xpm_store.init_store()
+    # Release Tracker owns its own registry table (rt_projects) + registers its
+    # portal card (idempotent, additive — no change to the platform schema).
+    rt_store.init_store()
     # Uploaded tool icons + user avatars live alongside the brand assets under static/.
     (constants.ROOT / "static" / "tool-icons").mkdir(parents=True, exist_ok=True)
     constants.AVATAR_DIR.mkdir(parents=True, exist_ok=True)
@@ -172,6 +182,7 @@ def create_app() -> Flask:
     app.register_blueprint(qgen_bp)
     app.register_blueprint(tool3_bp)
     app.register_blueprint(xpm_bp)
+    app.register_blueprint(rt_bp)
     app.register_blueprint(teams_bp)
     app.register_blueprint(portal_admin_bp)
     app.register_blueprint(admin_bp)
@@ -257,8 +268,17 @@ def create_app() -> Flask:
         custom_logo = models.setting_get("brand.logo_filename") or ""
         if custom_logo and (constants.BRAND_DIR / custom_logo).exists():
             logo_url = url_for("static", filename=f"brand/{custom_logo}")
+            # The uploaded brand logo doubles as the browser-tab favicon. A
+            # cache-busting ?v=<mtime> forces browsers to fetch the new icon
+            # instead of the aggressively-cached old one after a logo change.
+            try:
+                _v = int((constants.BRAND_DIR / custom_logo).stat().st_mtime)
+            except OSError:
+                _v = 0
+            favicon_url = f"{logo_url}?v={_v}"
         else:
             logo_url = url_for("static", filename="logo.svg")
+            favicon_url = url_for("static", filename="favicon.svg")
         # Current user's uploaded avatar (falls back to an initial in templates).
         avatar_url = None
         if current_user.is_authenticated:
@@ -271,6 +291,7 @@ def create_app() -> Flask:
             session_timeout_minutes = 5
         return {
             "platform_name":         constants.PLATFORM_NAME,
+            "platform_tagline":      constants.PLATFORM_TAGLINE,
             "app_name":              constants.APP_NAME,
             "current_year":          year,
             "session_timeout_minutes": session_timeout_minutes,
@@ -282,6 +303,7 @@ def create_app() -> Flask:
             "notifications":         notifications,
             "pending_team_requests": pending_team_requests,
             "logo_url":              logo_url,
+            "favicon_url":           favicon_url,
             "avatar_url":            avatar_url,
             "accessible_tool_slugs": accessible_tool_slugs,
             "nav_tools":             nav_tools,
@@ -302,5 +324,11 @@ app = create_app()
 
 
 if __name__ == "__main__":
+    # Dev server only — production runs under waitress, which never executes this
+    # block, so the Werkzeug debugger is never exposed in production. Debug (auto
+    # code-reload + debugger) is ON by default for local development on localhost;
+    # set FLASK_DEBUG=0 to run the dev server hardened. Never bind HOST=0.0.0.0
+    # with debug on. Templates hot-reload regardless (TEMPLATES_AUTO_RELOAD).
     app.run(host=os.getenv("HOST", "127.0.0.1"),
-            port=int(os.getenv("PORT", "5000")), debug=True)
+            port=int(os.getenv("PORT", "5000")),
+            debug=os.getenv("FLASK_DEBUG", "1") == "1")

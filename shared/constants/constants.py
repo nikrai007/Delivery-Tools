@@ -19,6 +19,9 @@ load_dotenv(ROOT / ".env")
 
 # --- Branding -----------------------------------------------------------
 PLATFORM_NAME = os.getenv("PLATFORM_NAME", "Delivery Toolbox")
+# Short subtitle shown under the platform name in the sidebar of every page.
+# Must be a *platform*-level label, not a single tool's name. Override via env.
+PLATFORM_TAGLINE = os.getenv("PLATFORM_TAGLINE", "Enterprise Tools Suite")
 APP_NAME      = os.getenv("APP_NAME", "AutoBackupRevert")
 APP_OWNER     = os.getenv("APP_OWNER", "Nikhil Kumar (EC2845)")
 APP_COMPANY   = os.getenv("APP_COMPANY", "Personal Dev Corporation ltd")

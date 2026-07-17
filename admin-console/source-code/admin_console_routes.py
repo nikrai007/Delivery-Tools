@@ -1325,7 +1325,7 @@ def security_policy():
         audit.record("config.security_policy_updated", category=audit.CAT_SECURITY,
                      target_type="settings", target_label="Security policy")
         flash("Security policy saved.", "success")
-        return redirect(url_for("admin.security"))
+        return redirect(url_for("admin.security_policy"))
 
     ctx = {k.replace("security.", ""): security.get_int(k) for k in _ints}
     for k in _bools:

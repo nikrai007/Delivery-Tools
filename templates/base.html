@@ -73,7 +73,7 @@
 
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
-    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+    <link rel="icon" href="{{ favicon_url | default(url_for('static', filename='favicon.svg')) }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     {% block head_extra %}{% endblock %}
   </head>
@@ -97,7 +97,7 @@
           <img src="{{ logo_url }}" alt="" class="h-10 w-10 rounded-xl shadow-md shadow-brand-200/60 dark:shadow-brand-900/40">
           <div class="leading-tight">
             <h2 class="text-base font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">{{ platform_name }}</h2>
-            <p class="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold">{{ app_name }}</p>
+            <p class="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold">{{ platform_tagline }}</p>
           </div>
         </div>
       </a>
@@ -206,6 +206,24 @@
                 <span class="material-symbols-outlined text-[20px]">travel_explore</span>
                 Batch explorer
               </a>
+            {% endcall %}
+          {% endif %}
+
+          {# Release Tracker's own screens — shown only while inside that tool. #}
+          {% if 'rt' in accessible_tool_slugs and request.endpoint and request.endpoint.startswith('rt.') %}
+            {% call nav_group('rt', 'Release Tracker', True) %}
+              <a href="{{ url_for('rt.dashboard') }}"
+                 class="{{ item }} {% if request.endpoint=='rt.dashboard' %}{{ active }}{% else %}{{ idle }}{% endif %}">
+                <span class="material-symbols-outlined text-[20px]">table_rows</span>
+                Tracker
+              </a>
+              {% if is_admin or is_team_leader %}
+                <a href="{{ url_for('rt.config') }}"
+                   class="{{ item }} {% if request.endpoint in ('rt.config',) %}{{ active }}{% else %}{{ idle }}{% endif %}">
+                  <span class="material-symbols-outlined text-[20px]">database</span>
+                  Database configuration
+                </a>
+              {% endif %}
             {% endcall %}
           {% endif %}
 

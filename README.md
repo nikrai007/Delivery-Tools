@@ -9,8 +9,8 @@ own top-level folder. The landing page (`/`) is the launchpad; **AutoBackupRever
 Delivery-Tools/
 │
 ├── app.py                      # Application factory — wires every tool together
-├── run.bat                     # Windows launcher (waitress)
-├── requirements.txt
+├── run.bat / run.sh            # Windows / macOS-Linux launchers (waitress)
+├── pyproject.toml / uv.lock    # Dependencies + pinned Python, managed by uv
 ├── .env / .env.example         # Configuration (secrets, paths, branding)
 │
 ├── login/                      # Authentication tool (blueprint: auth)
@@ -72,19 +72,34 @@ Delivery-Tools/
 
 ## Run it
 
-```bat
-:: from Delivery-Tools/
-run.bat
+Dependencies are managed with [uv](https://docs.astral.io/uv/) and pinned in
+[uv.lock](uv.lock) — the exact same versions install on Windows, macOS, and
+Linux. `uv` also manages the Python interpreter itself (see
+[.python-version](.python-version)), so a matching Python does not need to be
+pre-installed on either OS.
+
+```bash
+# from Delivery-Tools/
+./run.sh      # macOS / Linux
+run.bat       # Windows
 ```
 
-or manually:
+Both launchers auto-install `uv` if it's missing, run `uv sync` to create
+`.venv/` and install the locked dependencies, seed `.env` from `.env.example`
+on first run, then start the app under waitress.
 
-```bat
-python -m pip install -r requirements.txt
-python app.py                 :: dev server (http://127.0.0.1:5000)
-:: or, production:
-python -m waitress --listen=0.0.0.0:5000 app:app
+or manually, once [uv is installed](https://docs.astral.sh/uv/getting-started/installation/):
+
+```bash
+uv sync                          # create .venv/ + install locked deps (once, or after pyproject.toml changes)
+uv run python app.py             # dev server (http://127.0.0.1:5000)
+# or, production:
+uv run python -m waitress --listen=0.0.0.0:5000 app:app
 ```
+
+`uv run` works identically in bash, zsh, PowerShell, and cmd — no manual venv
+activation needed. Adding a new dependency: `uv add <package>` (updates
+`pyproject.toml` and `uv.lock` together, cross-platform).
 
 The bootstrap admin is created from `ADMIN_USERNAME` / `ADMIN_PASSWORD` in `.env`
 on first run. **Rotate these before exposing the app.**

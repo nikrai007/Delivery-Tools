@@ -261,8 +261,13 @@ def register():
                                    full_name=full_name, employee_code=employee_code,
                                    teams=teams, selected_team=team_id)
 
-        # Determine approval status: if team chosen, request is pending; otherwise approved.
-        approval_status = "pending" if team_id else "approved"
+        # SECURITY: every self-registration is held for approval before any tool
+        # is reachable. A user who does not pick a team no longer gets silent,
+        # unapproved access — they wait for an admin. Team pickers are approved
+        # through the join-request workflow (leader/admin); team-less registrants
+        # are approved by an admin from the pending-users queue. The platform-wide
+        # ``check_pending_approval`` guard blocks a pending user from every tool.
+        approval_status = "pending"
         uid = models.create_user(
             username, email, password,
             full_name=full_name or None,
@@ -278,7 +283,7 @@ def register():
                      new_value={"username": username, "email": email,
                                 "employee_code": employee_code,
                                 "team_id": team_id, "approval_status": approval_status},
-                     details={"self_registration": True})
+                     details={"self_registration": True, "requested_team": bool(team_id)})
 
         if team_id:
             # Create join request
@@ -310,9 +315,29 @@ def register():
                     )
             flash("Your account was created. Waiting for team leader approval.", "info")
             return redirect(url_for("teams.pending_approval"))
-        else:
-            flash("Welcome — your account was created.", "success")
-            return redirect(_after_login_url())
+
+        # No team chosen — the account is held for ADMIN approval. Alert every
+        # admin (in-app bell + email) so no unapproved account slips through.
+        for admin in models.list_users():
+            if admin["role"] == "admin":
+                models.create_notification(
+                    admin["id"], "approval",
+                    f"{username} registered without a team and needs your approval.",
+                    link=url_for("teams.admin_requests"),
+                    ref_id=uid,
+                )
+        email_utils.notify_admins(
+            "admin_event",
+            title="New account awaiting approval",
+            message=(f"{username} ({employee_code or 'no code'}, {email or 'no email'}) "
+                     f"registered without selecting a team and needs approval before "
+                     f"they can access any tool.\n\n"
+                     f"Review pending accounts: "
+                     f"{url_for('teams.admin_requests', _external=True)}"),
+        )
+        flash("Your account was created and is pending administrator approval. "
+              "You'll be able to sign in and use the tools once an admin approves it.", "info")
+        return redirect(url_for("teams.pending_approval"))
 
     return render_template("register.html", teams=teams, username="", email="",
                            full_name="", employee_code="", selected_team=None)

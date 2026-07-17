@@ -2,32 +2,35 @@
 REM ====================================================================
 REM  Delivery Toolbox - Windows launcher (waitress WSGI server)
 REM ====================================================================
+setlocal enabledelayedexpansion
 set SCRIPT_DIR=%~dp0
 pushd "%SCRIPT_DIR%"
 
-REM Prefer a local .venv; fall back to a parent .venv if present.
-if exist ".venv\Scripts\activate.bat" (
-    call ".venv\Scripts\activate.bat"
-) else if exist "..\.venv\Scripts\activate.bat" (
-    call "..\.venv\Scripts\activate.bat"
-) else (
-    echo [setup] Creating virtual environment...
-    python -m venv .venv || goto :fail
-    call ".venv\Scripts\activate.bat" || goto :fail
+where uv >nul 2>nul
+if errorlevel 1 (
+    echo [setup] uv not found -- installing ^(https://astral.sh/uv^)...
+    powershell -ExecutionPolicy ByPass -Command "irm https://astral.sh/uv/install.ps1 | iex" || goto :fail
+    set "PATH=%USERPROFILE%\.local\bin;%PATH%"
 )
 
-echo [setup] Installing/updating dependencies...
-python -m pip install --upgrade pip >nul
-python -m pip install -r requirements.txt || goto :fail
+echo [setup] Syncing dependencies ^(uv.lock^)...
+uv sync || goto :fail
 
 if not exist ".env" (
-    echo [setup] No .env found. Copying .env.example -> .env
+    echo [setup] No .env found. Copying .env.example -^> .env
     copy /Y ".env.example" ".env" >nul
     echo [setup] Edit .env to set FLASK_SECRET_KEY and ADMIN_PASSWORD before exposing to users.
 )
 
-echo [run] Starting Delivery Toolbox...
-python -m waitress --listen=0.0.0.0:5000 app:app
+set "PORT=5000"
+set "HOST=0.0.0.0"
+for /f "usebackq tokens=1,* delims==" %%A in (".env") do (
+    if "%%A"=="PORT" if not "%%B"=="" set "PORT=%%B"
+    if "%%A"=="HOST" if not "%%B"=="" set "HOST=%%B"
+)
+
+echo [run] Starting Delivery Toolbox on %HOST%:%PORT%...
+uv run python -m waitress --listen=%HOST%:%PORT% app:app
 
 popd
 exit /b 0

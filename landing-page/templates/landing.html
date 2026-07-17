@@ -118,11 +118,70 @@
             <span class="material-symbols-outlined text-[20px] hidden dark:inline">light_mode</span>
           </button>
           {% if current_user.is_authenticated %}
-            <a href="{{ url_for('abr.dashboard') }}"
-               class="btn-sheen inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white
-                      bg-gradient-to-b from-brand-500 to-brand-700 shadow-lg shadow-brand-500/25 hover:-translate-y-0.5 transition-all">
-              <span class="material-symbols-outlined text-[18px]">dashboard</span> Dashboard
-            </a>
+            {# ── Account menu (profile / edit / security / logout) — extreme right ── #}
+            <div class="relative" id="profile-wrapper">
+              <button id="profile-btn" type="button"
+                      class="flex items-center gap-1 p-1 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                      title="Account" aria-haspopup="true" aria-expanded="false">
+                {% if avatar_url %}
+                  <img src="{{ avatar_url }}" alt="" class="h-8 w-8 rounded-full object-cover shadow-sm">
+                {% else %}
+                  <span class="h-8 w-8 rounded-full bg-brand-600 text-white flex items-center justify-center text-sm font-semibold shadow-sm">
+                    {{ current_user.username[:1]|upper }}
+                  </span>
+                {% endif %}
+                <span class="material-symbols-outlined text-[18px] text-zinc-500 hidden sm:inline">expand_more</span>
+              </button>
+              <div id="profile-panel"
+                   class="hidden absolute right-0 top-full mt-1 w-64 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xl z-50 overflow-hidden">
+                <div class="flex items-center gap-3 px-4 py-3 border-b border-zinc-100 dark:border-zinc-800">
+                  {% if avatar_url %}
+                    <img src="{{ avatar_url }}" alt="" class="h-10 w-10 rounded-full object-cover shrink-0">
+                  {% else %}
+                    <span class="h-10 w-10 rounded-full bg-brand-600 text-white flex items-center justify-center text-base font-semibold shrink-0">
+                      {{ current_user.username[:1]|upper }}
+                    </span>
+                  {% endif %}
+                  <div class="min-w-0">
+                    <p class="text-sm font-semibold truncate text-zinc-900 dark:text-zinc-100">{{ current_user.full_name or current_user.username }}</p>
+                    <p class="text-[11px] text-zinc-500 truncate">{{ current_user.email or current_user.username }}</p>
+                    <span class="inline-block mt-1 text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500">{{ current_user.role }}</span>
+                  </div>
+                </div>
+                <div class="py-1">
+                  <a href="{{ url_for('auth.profile') }}"
+                     class="flex items-center gap-2.5 px-4 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+                    <span class="material-symbols-outlined text-[18px] text-zinc-400">account_circle</span> View profile
+                  </a>
+                  <a href="{{ url_for('auth.profile_edit') }}"
+                     class="flex items-center gap-2.5 px-4 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+                    <span class="material-symbols-outlined text-[18px] text-zinc-400">edit</span> Edit profile
+                  </a>
+                  <a href="{{ url_for('auth.security_settings') }}"
+                     class="flex items-center gap-2.5 px-4 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+                    <span class="material-symbols-outlined text-[18px] text-zinc-400">security</span> Security &amp; 2FA
+                  </a>
+                  {% if is_admin %}
+                    <a href="{{ url_for('admin.console') }}"
+                       class="flex items-center gap-2.5 px-4 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+                      <span class="material-symbols-outlined text-[18px] text-zinc-400">admin_panel_settings</span> Admin console
+                    </a>
+                  {% endif %}
+                  {% if is_team_leader and not is_admin %}
+                    <a href="{{ url_for('teams.my_team') }}"
+                       class="flex items-center gap-2.5 px-4 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+                      <span class="material-symbols-outlined text-[18px] text-zinc-400">group</span> Team dashboard
+                    </a>
+                  {% endif %}
+                </div>
+                <div class="py-1 border-t border-zinc-100 dark:border-zinc-800">
+                  <a href="{{ url_for('auth.logout') }}"
+                     class="flex items-center gap-2.5 px-4 py-2 text-sm text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors">
+                    <span class="material-symbols-outlined text-[18px]">logout</span> Sign out
+                  </a>
+                </div>
+              </div>
+            </div>
           {% else %}
             <a href="{{ url_for('auth.login') }}"
                class="btn-sheen inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white
@@ -392,6 +451,27 @@
     <script src="{{ url_for('static', filename='app.js') }}"></script>
     <script>
       var REDUCED = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+      // Account menu toggle (parity with the in-tool topbar profile menu).
+      (function () {
+        var btn = document.getElementById('profile-btn');
+        var panel = document.getElementById('profile-panel');
+        if (!btn || !panel) return;
+        btn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          var open = !panel.classList.contains('hidden');
+          panel.classList.toggle('hidden', open);
+          btn.setAttribute('aria-expanded', String(!open));
+        });
+        document.addEventListener('click', function () {
+          panel.classList.add('hidden');
+          btn.setAttribute('aria-expanded', 'false');
+        });
+        panel.addEventListener('click', function (e) { e.stopPropagation(); });
+        document.addEventListener('keydown', function (e) {
+          if (e.key === 'Escape') { panel.classList.add('hidden'); btn.setAttribute('aria-expanded', 'false'); }
+        });
+      })();
 
       // Scroll-reveal: fade sections/cards up as they enter the viewport, with a
       // gentle stagger for grids of cards (professional timing/easing).

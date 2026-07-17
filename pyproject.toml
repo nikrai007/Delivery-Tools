@@ -1,0 +1,37 @@
+[project]
+name = "delivery-toolbox"
+version = "1.0.0"
+description = "Self-hosted, single-login Flask platform hosting internal delivery tools."
+requires-python = ">=3.12"
+dependencies = [
+    "flask==3.0.3",
+    "flask-login==0.6.3",
+    "werkzeug==3.0.4",
+    "py7zr==0.22.0",
+    "waitress==3.0.0",
+    "python-dotenv==1.0.1",
+    "apscheduler==3.10.4",
+    "cryptography>=42.0",   # Encrypt Decrypt Utility -- AES-256-CBC + PKCS7
+    "requests>=2.31",       # XPM Automator -- HTTP client for the XPM CRM (no BeautifulSoup: stdlib html.parser)
+    "openpyxl>=3.1",        # Release Tracker -- Excel (.xlsx) import/export
+
+    # --- Enterprise: configurable database providers (#9) -------------------
+    # SQLite (default) needs none of these. Each is optional at runtime -- the
+    # DB-config UI degrades gracefully if a driver is absent -- but they are
+    # installed by default so every provider works out of the box.
+    "sqlalchemy>=2.0",      # cross-provider engine + reflection for migration
+    "psycopg[binary]>=3.1", # PostgreSQL   (dialect: postgresql+psycopg)
+    "pymysql>=1.1",         # MySQL/MariaDB (dialect: mysql+pymysql)
+    "oracledb>=2.0",        # Oracle        (dialect: oracle+oracledb, thin mode)
+    "pymongo>=4.6",         # MongoDB
+    # "pyodbc>=5.0",        # MS SQL Server (dialect: mssql+pyodbc) -- needs a
+    # system ODBC driver (Microsoft ODBC Driver on Windows, unixODBC on
+    # macOS/Linux). Uncomment and `uv add` only if you need SQL Server.
+]
+
+[tool.uv]
+# This is a Flask application, not a distributable library: the tool folders
+# use hyphenated names and are added to sys.path by app.py rather than being
+# importable packages, so there is nothing here for uv to build/install as a
+# wheel -- it should only manage the interpreter + dependency environment.
+package = false

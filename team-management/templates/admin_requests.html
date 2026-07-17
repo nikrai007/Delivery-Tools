@@ -8,11 +8,70 @@
 
 <div class="space-y-6">
 
+  {# ── Team-less registrations awaiting admin approval ──────────────── #}
+  <section class="bg-white dark:bg-zinc-900 border border-amber-200 dark:border-amber-800/60 rounded-xl shadow-sm overflow-hidden">
+    <div class="p-5 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
+      <div>
+        <h2 class="text-sm font-semibold flex items-center gap-1.5">
+          <span class="material-symbols-outlined text-[18px] text-amber-600 dark:text-amber-400">person_add</span>
+          Accounts awaiting approval
+        </h2>
+        <p class="text-xs text-zinc-500 mt-0.5">
+          {{ pending_users|length }} user{{ '' if pending_users|length == 1 else 's' }} registered without a team — approve to grant standalone tool access.
+        </p>
+      </div>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-left text-sm">
+        <thead class="bg-zinc-50 dark:bg-zinc-800/50 text-zinc-500 border-b border-zinc-200 dark:border-zinc-800">
+          <tr>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">User</th>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">Employee code</th>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">Registered</th>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px] text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-zinc-100 dark:divide-zinc-800">
+          {% for u in pending_users %}
+            <tr class="hover:bg-zinc-50/60 dark:hover:bg-zinc-800/40 transition-colors">
+              <td class="px-5 py-3">
+                <div class="font-medium">{{ u.username }}</div>
+                <div class="text-[11px] text-zinc-500">{{ u.email or '—' }}</div>
+                {% if u.full_name %}<div class="text-[11px] text-zinc-400 mt-0.5">{{ u.full_name }}</div>{% endif %}
+              </td>
+              <td class="px-5 py-3 font-mono text-xs text-zinc-500">{{ u.employee_code or '—' }}</td>
+              <td class="px-5 py-3 text-xs text-zinc-500 tabular-nums whitespace-nowrap">{{ u.created_at[:16].replace('T', ' ') if u.created_at else '—' }}</td>
+              <td class="px-5 py-3 text-right">
+                <div class="inline-flex items-center gap-2">
+                  <form method="post" action="{{ url_for('teams.admin_approve_user', user_id=u.id) }}" class="inline">
+                    <button type="submit"
+                            class="inline-flex items-center gap-1 h-7 px-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium rounded-md transition-colors">
+                      <span class="material-symbols-outlined text-[14px]">check</span> Approve
+                    </button>
+                  </form>
+                  <form method="post" action="{{ url_for('teams.admin_reject_user', user_id=u.id) }}"
+                        onsubmit="return confirm('Reject {{ u.username }}? They will not be able to use the platform.')" class="inline">
+                    <button type="submit"
+                            class="inline-flex items-center gap-1 h-7 px-3 bg-rose-600 hover:bg-rose-700 text-white text-xs font-medium rounded-md transition-colors">
+                      <span class="material-symbols-outlined text-[14px]">close</span> Reject
+                    </button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          {% else %}
+            <tr><td colspan="4" class="p-10 text-center text-sm text-zinc-500">No accounts awaiting approval.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
   {# ── Pending ──────────────────────────────────────────────────────── #}
   <section class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm overflow-hidden">
     <div class="p-5 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
       <div>
-        <h2 class="text-sm font-semibold">Pending requests</h2>
+        <h2 class="text-sm font-semibold">Pending team join requests</h2>
         <p class="text-xs text-zinc-500 mt-0.5">{{ pending|length }} awaiting decision</p>
       </div>
     </div>

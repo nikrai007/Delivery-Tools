@@ -41,7 +41,7 @@ PROVIDERS: dict[str, Provider] = {
     "mssql": Provider("mssql", "Microsoft SQL Server", "relational", 1433, "pyodbc",
                       ("host", "port", "database", "username", "password", "extra")),
     "oracle": Provider("oracle", "Oracle", "relational", 1521, "oracledb",
-                       ("host", "port", "database", "username", "password")),
+                       ("host", "port", "service_name", "database", "username", "password")),
     "mongodb": Provider("mongodb", "MongoDB", "mongodb", 27017, "pymongo",
                         ("host", "port", "database", "username", "password", "uri")),
 }
@@ -83,6 +83,7 @@ def build_sqlalchemy_url(pid: str, cfg: dict) -> str:
         raise ValueError(f"'{pid}' is not a relational provider.")
     p = PROVIDERS[pid]
     query = {}
+    database = cfg.get("database") or None
     if pid == "mssql":
         # e.g. extra = "driver=ODBC Driver 18 for SQL Server"
         for part in (cfg.get("extra") or "").split(";"):
@@ -90,13 +91,27 @@ def build_sqlalchemy_url(pid: str, cfg: dict) -> str:
                 k, v = part.split("=", 1)
                 query[k.strip()] = v.strip()
         query.setdefault("driver", "ODBC Driver 18 for SQL Server")
+    if pid == "oracle":
+        # Oracle connects by SERVICE NAME (Oracle Cloud / modern listeners) or by
+        # SID. Prefer an explicit service_name (rendered as ?service_name=… which
+        # oracledb resolves via Easy Connect); fall back to the `database` field
+        # treated as a SID for legacy instances. This keeps existing configs
+        # working while making the common service-name case connect correctly.
+        service = (cfg.get("service_name") or "").strip()
+        if not service:
+            for part in (cfg.get("extra") or "").split(";"):
+                if part.strip().lower().startswith("service_name="):
+                    service = part.split("=", 1)[1].strip()
+        if service:
+            query["service_name"] = service
+            database = None
     return str(URL.create(
         dialects[pid],
         username=cfg.get("username") or None,
         password=cfg.get("password") or None,
         host=cfg.get("host") or None,
         port=int(cfg["port"]) if cfg.get("port") else p.default_port,
-        database=cfg.get("database") or None,
+        database=database,
         query=query,
     ))
 

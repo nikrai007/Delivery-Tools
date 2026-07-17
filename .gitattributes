@@ -1,0 +1,18 @@
+# Normalize line endings so files are byte-identical whether checked out on
+# Windows or macOS/Linux -- avoids the CRLF/LF churn and mis-decoded editor
+# saves (mojibake) that show up as huge diffs or corrupted comments after a
+# cross-platform clone.
+* text=auto eol=lf
+
+*.bat text eol=crlf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.db binary
+*.sqlite binary
+*.sqlite3 binary
+*.7z binary
+*.zip binary

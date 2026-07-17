@@ -419,7 +419,63 @@ def admin_remove_from_team(user_id: int):
 @admin_required
 def admin_requests():
     requests_list = models.list_all_join_requests()
-    return render_template("admin_requests.html", requests=requests_list)
+    # Team-less registrants have no join request, so they are approved directly
+    # here rather than through the join-request workflow.
+    pending_users = [u for u in models.list_users()
+                     if _row_str(u, "approval_status") == "pending" and not u["team_id"]]
+    return render_template("admin_requests.html", requests=requests_list,
+                           pending_users=pending_users)
+
+
+# -----------------------------------------------------------------------
+# Admin — approve/reject a team-less pending user (no join request exists)
+# -----------------------------------------------------------------------
+@teams_bp.route("/admin/users/<int:user_id>/approve", methods=["POST"])
+@admin_required
+def admin_approve_user(user_id: int):
+    target = models.get_user(user_id)
+    if target is None:
+        abort(404)
+    if _row_str(target, "approval_status") != "pending":
+        flash("That account is not awaiting approval.", "info")
+        return redirect(url_for("teams.admin_requests"))
+    models.update_user(user_id, approval_status="approved")
+    audit.record("approval.user_approved", category=audit.CAT_APPROVAL,
+                 target_type="user", target_id=user_id, target_label=target["username"],
+                 new_value={"approval_status": "approved"},
+                 details={"reviewer": "admin", "context": "no_team_registration"})
+    models.create_notification(
+        user_id, "approved",
+        "Your account was approved — you now have access to the platform tools.",
+        link=url_for("landing.index"),
+    )
+    if target["email"]:
+        email_utils.notify("join_approved", target["email"],
+                           username=target["username"], team="Delivery Toolbox")
+    flash(f"Approved {target['username']}.", "success")
+    return redirect(url_for("teams.admin_requests"))
+
+
+@teams_bp.route("/admin/users/<int:user_id>/reject", methods=["POST"])
+@admin_required
+def admin_reject_user(user_id: int):
+    target = models.get_user(user_id)
+    if target is None:
+        abort(404)
+    models.update_user(user_id, approval_status="rejected")
+    audit.record("approval.user_rejected", category=audit.CAT_APPROVAL,
+                 target_type="user", target_id=user_id, target_label=target["username"],
+                 new_value={"approval_status": "rejected"},
+                 details={"reviewer": "admin", "context": "no_team_registration"})
+    models.create_notification(
+        user_id, "rejected",
+        "Your account registration was not approved. Contact your administrator.",
+    )
+    if target["email"]:
+        email_utils.notify("join_rejected", target["email"],
+                           username=target["username"], team="Delivery Toolbox")
+    flash(f"Rejected {target['username']}.", "info")
+    return redirect(url_for("teams.admin_requests"))
 
 
 @teams_bp.route("/admin/requests/<int:req_id>/approve", methods=["GET", "POST"])

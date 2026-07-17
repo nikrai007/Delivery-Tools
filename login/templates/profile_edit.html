@@ -9,23 +9,26 @@
   <section class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm p-6 space-y-4">
     <h2 class="text-sm font-semibold">Profile photo</h2>
     <div class="flex items-center gap-5">
-      {% if avatar_url %}
-        <img src="{{ avatar_url }}" alt="" class="h-16 w-16 rounded-full object-cover ring-2 ring-brand-500/30">
-      {% else %}
-        <span class="h-16 w-16 rounded-full bg-brand-600 text-white flex items-center justify-center text-2xl font-semibold">
-          {{ current_user.username[:1]|upper }}
-        </span>
-      {% endif %}
+      {# Live preview target: the <img> shows the current or newly-selected photo;
+         the initial-letter placeholder shows when there is no photo. JS toggles
+         between them the instant a file is picked. #}
+      <img id="avatar-preview" src="{{ avatar_url or '' }}" alt="Profile photo preview"
+           class="h-16 w-16 rounded-full object-cover ring-2 ring-brand-500/30 {% if not avatar_url %}hidden{% endif %}">
+      <span id="avatar-placeholder"
+            class="h-16 w-16 rounded-full bg-brand-600 text-white flex items-center justify-center text-2xl font-semibold {% if avatar_url %}hidden{% endif %}">
+        {{ current_user.username[:1]|upper }}
+      </span>
       <div class="flex-1">
-        <input type="file" name="avatar" accept=".png,.jpg,.jpeg,.webp,.gif"
+        <input id="avatar-input" type="file" name="avatar" accept=".png,.jpg,.jpeg,.webp,.gif"
                class="block w-full text-sm text-zinc-500 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100">
         <p class="text-[11px] text-zinc-400 mt-1">PNG, JPG, WEBP or GIF · up to 5 MB.</p>
-        {% if avatar_url %}
-          <label class="inline-flex items-center gap-2 mt-2 text-xs text-zinc-500">
-            <input type="checkbox" name="remove_avatar" value="1" class="rounded text-rose-600 focus:ring-rose-500">
-            Remove current photo
-          </label>
-        {% endif %}
+        <p id="avatar-hint" class="hidden text-[11px] text-brand-600 dark:text-brand-300 mt-1 font-medium">
+          New photo selected — save to apply.
+        </p>
+        <label class="inline-flex items-center gap-2 mt-2 text-xs text-zinc-500 {% if not avatar_url %}hidden{% endif %}" id="remove-avatar-wrap">
+          <input type="checkbox" name="remove_avatar" value="1" id="remove-avatar" class="rounded text-rose-600 focus:ring-rose-500">
+          Remove current photo
+        </label>
       </div>
     </div>
   </section>
@@ -86,4 +89,54 @@
     </a>
   </div>
 </form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  var input       = document.getElementById('avatar-input');
+  var preview     = document.getElementById('avatar-preview');
+  var placeholder = document.getElementById('avatar-placeholder');
+  var hint        = document.getElementById('avatar-hint');
+  var removeBox   = document.getElementById('remove-avatar');
+  if (!input || !preview || !placeholder) return;
+
+  var initialSrc = preview.getAttribute('src') || '';
+  var hadAvatar  = initialSrc !== '';
+
+  function showImage(src) {
+    preview.src = src;
+    preview.classList.remove('hidden');
+    placeholder.classList.add('hidden');
+  }
+  function showPlaceholder() {
+    preview.classList.add('hidden');
+    placeholder.classList.remove('hidden');
+  }
+
+  input.addEventListener('change', function () {
+    var file = input.files && input.files[0];
+    if (file) {
+      showImage(URL.createObjectURL(file));
+      if (hint) hint.classList.remove('hidden');
+      if (removeBox) removeBox.checked = false;   // can't set and remove at once
+    } else {
+      if (hint) hint.classList.add('hidden');
+      hadAvatar ? showImage(initialSrc) : showPlaceholder();
+    }
+  });
+
+  if (removeBox) {
+    removeBox.addEventListener('change', function () {
+      if (removeBox.checked) {
+        input.value = '';                 // drop any picked file
+        if (hint) hint.classList.add('hidden');
+        showPlaceholder();
+      } else if (hadAvatar) {
+        showImage(initialSrc);
+      }
+    });
+  }
+})();
+</script>
 {% endblock %}
