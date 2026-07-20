@@ -1,135 +1,130 @@
 # Delivery Toolbox
 
-A self-hosted **multi-tool developer platform**. One Flask process, one login,
-one design system — and a growing set of independent tools, each living in its
-own top-level folder. The landing page (`/`) is the launchpad; **AutoBackupRevert**
-(an FK-safe Oracle rollback-script generator) is the first live tool.
+Self-hosted, single-login platform for internal delivery tools — modern, secure, and designed for teams that want focused operational utilities without the clutter.
+
+Built as a single Flask application that hosts each tool as an isolated blueprint and ships a shared design system (see DESIGN.md and PRODUCT.md for the design intent and product strategy).
+
+Key design goals
+
+- One login, many safe tools: central auth, shared chrome, isolated tool code.
+- Premium, usable UI: "The Glass Instrument" design system (Inter + JetBrains Mono, Iris indigo action color).
+- Accessibility-aware: aiming for WCAG 2.1 AA.
+
+Why this repo
+
+Delivery Toolbox provides a lightweight way to bundle multiple internal tools behind a single sign-on and a common design system. It’s intended for internal teams and trusted external clients who need self-serve operational tooling (migrations, query helpers, release imports, CRM automations, etc.).
+
+Notable live tools
+
+- AutoBackupRevert — FK-safe Oracle rollback & backup script generator (abr)
+- Encrypt/Decrypt utility (edu)
+- SQL Query Generator (qgen)
+- Release Tracker (rt)
+- XPM Automator (xpm)
+- Team Management (teams)
+- Portal Admin / Admin Console (portal-admin, admin-console)
+
+Stack
+
+- Language(s): Python (Flask) with HTML/CSS templates
+- Runtime: Flask 3.x, deployable under waitress
+- Notable libraries: flask, flask-login, sqlalchemy (optional DB backends), apscheduler
+- Minimum Python: 3.12+ (managed by uv)
+
+Repository layout (top-level)
 
 ```
-Delivery-Tools/
-│
-├── app.py                      # Application factory — wires every tool together
-├── run.bat / run.sh            # Windows / macOS-Linux launchers (waitress)
-├── pyproject.toml / uv.lock    # Dependencies + pinned Python, managed by uv
-├── .env / .env.example         # Configuration (secrets, paths, branding)
-│
-├── login/                      # Authentication tool (blueprint: auth)
-│   ├── source-code/            # auth.py — login / register / forgot / reset
-│   ├── authentication-config/  # login_manager.py — Flask-Login + User + loader
-│   ├── API/                    # (reserved for a future auth API)
-│   ├── templates/              # login / register / forgot / reset pages
-│   └── documentation.md
-│
-├── database/                   # Persistence layer
-│   ├── schema/schema.sql       # Canonical CREATE TABLE script
-│   ├── migrations/             # ALTER ledger (forward-only)
-│   ├── seed-data/              # Admin bootstrap notes
-│   ├── database-config/        # models.py — the SQLite access layer
-│   ├── data/app.db             # The live SQLite database
-│   └── documentation.md
-│
-├── landing-page/               # Platform hub (blueprint: landing)
-│   ├── source-code/            # landing_routes.py — "/" + "/about" + tools registry
-│   ├── assets/                 # Brand assets (logo, favicon)
-│   ├── styles/                 # Landing-specific CSS notes
-│   ├── components/             # Section breakdown notes
-│   ├── templates/              # landing.html, about.html
-│   └── documentation.md
-│
-├── auto-backup-revert-tool/    # Tool #1 (blueprint: abr)
-│   ├── source-code/            # abr_routes.py (routes), core.py, scheduler.py
-│   ├── dependencies/           # connectors/ (local + git), email_utils.py
-│   ├── configuration/          # Tool config notes
-│   ├── scripts/                # Operational scripts
-│   ├── templates/              # dashboard / upload / review / result / history / admin* / admin_logo
-│   ├── samples/                # Sample migration SQL
-│   └── documentation.md        # Full tool overview
-│
-├── team-management/            # Team feature (blueprint: teams)
-│   ├── source-code/            # team_routes.py — team CRUD, join-request workflow, team dashboards
-│   └── templates/              # team_dashboard / team_jobs / team_requests / admin_teams*
-│
-├── tool-3/                     # Scaffold for the next tool (blueprint: tool3)
-│   ├── source-code/            # tool3_routes.py (placeholder)
-│   ├── dependencies/
-│   ├── configuration/
-│   └── documentation.md
-│
-├── shared/                     # Cross-tool code
-│   ├── common-libraries/       # (shared libs — currently the DB + mail layers)
-│   ├── utilities/              # decorators.py — admin_required, ...
-│   └── constants/              # constants.py — config single source of truth
-│
-├── docs/                       # Platform docs
-│   ├── architecture.md
-│   ├── deployment-guide.md
-│   └── user-guide.md
-│
-├── static/                     # Shared design-system assets (served at /static)
-│   └── brand/                  # Uploaded platform logo (admin-managed, auto-created)
-└── templates/                  # Shared chrome (base.html, partials)
+app.py                      # Application factory — wires every tool together
+run.sh / run.bat            # Cross-platform launchers (uses uv + waitress)
+pyproject.toml / uv.lock    # Dependencies + pinned Python, managed by uv
+.env.example                # Configuration example (secrets, paths, branding)
+
+login/                      # Authentication blueprint
+database/                   # DB schema, migrations, and SQLite data (default)
+landing-page/               # Platform launch hub ("landing")
+auto-backup-revert-tool/    # AutoBackupRevert tool (abr)
+team-management/            # teams blueprint and templates
+encrypt-decrypt-tool/       # encrypt/decrypt utility (edu)
+query-generator-tool/       # query generator (qgen)
+release-tracker-tool/       # release tracker (rt)
+xpm-automator-tool/        # XPM automations (xpm)
+portal-admin/               # portal admin UI and settings
+admin-console/              # operational admin console
+shared/                     # cross-tool libraries, utilities, constants
+static/                     # shared design-system assets
+templates/                  # shared chrome (base.html, partials)
 ```
 
-## Run it
+How it fits together
 
-Dependencies are managed with [uv](https://docs.astral.io/uv/) and pinned in
-[uv.lock](uv.lock) — the exact same versions install on Windows, macOS, and
-Linux. `uv` also manages the Python interpreter itself (see
-[.python-version](.python-version)), so a matching Python does not need to be
-pre-installed on either OS.
+- app.py adds hyphenated tool folders to sys.path, initializes the DB and stores, registers blueprints (landing, auth, abr, edu, qgen, xpm, rt, teams, portal/admin).
+- models/ (database/database-config) manages persistence and the portal tool registry used to build the dynamic landing page.
+- Each tool lives in its own folder and exposes a Flask Blueprint. Landing page cards link to internal endpoints (or external tools) and the platform enforces access control.
+
+Run it (quickstart)
+
+This repo uses uv to manage the interpreter and pinned dependencies (uv.lock). The run scripts auto-install uv if missing and start the app under waitress.
+
+From a fresh clone:
 
 ```bash
-# from Delivery-Tools/
-./run.sh      # macOS / Linux
-run.bat       # Windows
+# On macOS / Linux
+./run.sh
+
+# On Windows
+run.bat
 ```
 
-Both launchers auto-install `uv` if it's missing, run `uv sync` to create
-`.venv/` and install the locked dependencies, seed `.env` from `.env.example`
-on first run, then start the app under waitress.
-
-or manually, once [uv is installed](https://docs.astral.sh/uv/getting-started/installation/):
+Manual steps (when you prefer control):
 
 ```bash
-uv sync                          # create .venv/ + install locked deps (once, or after pyproject.toml changes)
-uv run python app.py             # dev server (http://127.0.0.1:5000)
-# or, production:
+# Install uv per https://docs.astral.sh/uv/getting-started/installation/
+uv sync                         # create .venv/ + install locked deps (reads uv.lock)
+uv run python app.py            # dev server (http://127.0.0.1:5000)
+# production (waitress)
 uv run python -m waitress --listen=0.0.0.0:5000 app:app
 ```
 
-`uv run` works identically in bash, zsh, PowerShell, and cmd — no manual venv
-activation needed. Adding a new dependency: `uv add <package>` (updates
-`pyproject.toml` and `uv.lock` together, cross-platform).
+Notes
 
-The bootstrap admin is created from `ADMIN_USERNAME` / `ADMIN_PASSWORD` in `.env`
-on first run. **Rotate these before exposing the app.**
+- The bootstrap admin account is created from ADMIN_USERNAME / ADMIN_PASSWORD in .env on first run — rotate these before exposing the app.
+- The platform defaults to SQLite (database/data/app.db). Additional DB providers (Postgres, MySQL/Maria, Oracle, MongoDB) are optional and supported via SQLAlchemy drivers listed in pyproject.toml.
+- Uploaded tool icons, brand logos, and avatars are stored under static/ and BRAND_DIR.
 
-## How it fits together
+Configuration
 
-Each tool is a **Flask blueprint**. The factory in [app.py](app.py) puts every
-tool's code folder on `sys.path` (the folders use hyphens, so they can't be
-Python packages) and registers the blueprints:
+Copy or seed .env from .env.example and set at minimum:
 
-| Blueprint | Folder | URLs |
-|---|---|---|
-| `landing` | landing-page/ | `/`, `/about` |
-| `auth` | login/ | `/login`, `/register`, `/forgot`, `/reset/<token>` |
-| `abr` | auto-backup-revert-tool/ | `/dashboard`, `/new`, `/review`, `/result`, `/history`, `/download`, `/admin*` |
-| `teams` | team-management/ | `/teams/my`, `/teams/my/jobs`, `/teams/my/requests`, `/teams/admin*` |
-| `edu` | encrypt-decrypt-tool/ | `/tools/edu/` |
-| `qgen` | query-generator-tool/ | `/tools/qgen/` |
-| `tool3` | tool-3/ | `/tools/tool-3/` (scaffold) |
+- ADMIN_USERNAME, ADMIN_PASSWORD, ADMIN_EMAIL
+- SECRET_KEY
+- UPLOAD_ROOT (optional) — default used if unset
 
-## Adding a new tool
+Security
 
-1. Create `your-tool/source-code/yourtool_routes.py` exposing a `Blueprint`.
-2. Give it a `templates/` folder and point `template_folder` at it.
-3. Add its code dir(s) to `_CODE_DIRS` and register the blueprint in [app.py](app.py).
-4. Add a card to `LANDING_TOOLS` in
-   [landing-page/source-code/landing_routes.py](landing-page/source-code/landing_routes.py)
-   (`status="live"` + `endpoint="yourtool.home"`).
+- Change default admin credentials immediately on first run.
+- Enable organization policy settings (e.g., require_admin_2fa) via the Portal Admin UI where available.
 
-That's it — the landing hub, shared chrome, login, and design system come for free.
+Development notes
 
----
-*Personal Dev Corporation Ltd · © 2026*
+- Add a new tool:
+  1. Create your-tool/source-code/yourtool_routes.py exposing a Flask Blueprint.
+  2. Add templates/ for that tool and point template_folder accordingly.
+  3. Add the tool's code directory to _CODE_DIRS in app.py and register the blueprint in create_app().
+  4. Add a card to LANDING_TOOLS in landing-page/source-code/landing_routes.py with status="live" and endpoint set to your tool's home endpoint.
+
+- app.py contains several request guards and context processors that implement platform behavior (pending approvals, forced password changes, admin 2FA). Review it when adding auth-sensitive features.
+
+Where to read next
+
+- DESIGN.md — the visual design system and tokens ("The Glass Instrument").
+- PRODUCT.md — product strategy and audience.
+- landing-page/source-code/landing_routes.py — add or edit the launch cards.
+- auto-backup-revert-tool/documentation.md — tool-specific docs.
+
+Contributing
+
+Contributions welcome. Open issues for bugs and feature requests and file PRs against main. Keep changes small and document UI/brand changes in DESIGN.md where applicable.
+
+License
+
+Personal Dev Corporation Ltd · © 2026 (see LICENSE or repository header for details)
