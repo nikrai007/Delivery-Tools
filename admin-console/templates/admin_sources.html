@@ -13,11 +13,11 @@
       </p>
     </div>
     <div class="flex gap-2">
-      <a href="{{ url_for('abr.admin_sources_new', kind='local') }}"
+      <a href="{{ url_for('admin.sources_new', kind='local') }}"
          class="h-9 px-3 inline-flex items-center gap-1 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-xs font-medium shadow-sm">
         <span class="material-symbols-outlined text-[16px]">add</span> Local folder
       </a>
-      <a href="{{ url_for('abr.admin_sources_new', kind='git') }}"
+      <a href="{{ url_for('admin.sources_new', kind='git') }}"
          class="h-9 px-3 inline-flex items-center gap-1 rounded-lg bg-zinc-800 hover:bg-zinc-900 text-white text-xs font-medium shadow-sm dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white">
         <span class="material-symbols-outlined text-[16px]">add</span> Git repo
       </a>
@@ -106,21 +106,21 @@
               </td>
               <td class="px-5 py-3 text-right whitespace-nowrap">
                 <div class="inline-flex items-center gap-3 text-xs font-semibold">
-                  <form method="post" action="{{ url_for('abr.admin_sources_run', source_id=s.id) }}" class="inline">
+                  <form method="post" action="{{ url_for('admin.sources_run', source_id=s.id) }}" class="inline">
                     <button type="submit" class="text-emerald-600 hover:text-emerald-700">Run now</button>
                   </form>
                   {% if s.paused_until %}
-                    <form method="post" action="{{ url_for('abr.admin_sources_resume', source_id=s.id) }}" class="inline">
+                    <form method="post" action="{{ url_for('admin.sources_resume', source_id=s.id) }}" class="inline">
                       <button type="submit" class="text-amber-600 hover:text-amber-700" title="Clear snooze">Resume</button>
                     </form>
                   {% else %}
-                    <form method="post" action="{{ url_for('abr.admin_sources_pause', source_id=s.id) }}" class="inline"
+                    <form method="post" action="{{ url_for('admin.sources_pause', source_id=s.id) }}" class="inline"
                           onsubmit="return confirm('Snooze &quot;{{ s.name }}&quot; for 24 hours?');">
                       <button type="submit" class="text-amber-600 hover:text-amber-700" title="Snooze for 24 hours">Snooze 24h</button>
                     </form>
                   {% endif %}
-                  <a href="{{ url_for('abr.admin_sources_edit', source_id=s.id) }}" class="text-brand-600 hover:text-brand-700">Edit</a>
-                  <form method="post" action="{{ url_for('abr.admin_sources_delete', source_id=s.id) }}" class="inline"
+                  <a href="{{ url_for('admin.sources_edit', source_id=s.id) }}" class="text-brand-600 hover:text-brand-700">Edit</a>
+                  <form method="post" action="{{ url_for('admin.sources_delete', source_id=s.id) }}" class="inline"
                         onsubmit="return confirm('Delete watched source &quot;{{ s.name }}&quot;? This stops the scheduler for it but leaves past jobs intact.');">
                     <button type="submit" class="text-rose-600 hover:text-rose-700">Delete</button>
                   </form>

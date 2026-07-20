@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+{% block title %}Manage tools · {{ platform_name }}{% endblock %}
+{% block page_title %}Tool portal{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <section class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm overflow-hidden">
+    <div class="p-5 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-4 flex-wrap">
+      <div>
+        <h2 class="text-sm font-semibold">Registered tools</h2>
+        <p class="text-xs text-zinc-500 mt-0.5">{{ tools|length }} tool{{ '' if tools|length == 1 else 's' }} — drag the <span class="material-symbols-outlined text-[13px] align-middle">drag_indicator</span> handle to reorder; changes save automatically.</p>
+      </div>
+      <a href="{{ url_for('portal_admin.tool_new') }}"
+         class="inline-flex items-center gap-1.5 h-9 px-4 bg-gradient-to-b from-brand-500 to-brand-700 text-white text-sm font-semibold rounded-lg shadow-sm shadow-brand-500/25 hover:-translate-y-0.5 transition-all">
+        <span class="material-symbols-outlined text-[18px]">add</span> New tool
+      </a>
+    </div>
+
+    {# ── Filter toolbar ── #}
+    <div class="px-5 py-3 border-b border-zinc-200 dark:border-zinc-800 flex items-center gap-3 flex-wrap bg-zinc-50/50 dark:bg-zinc-800/20">
+      <div class="relative flex-1 min-w-[200px]">
+        <span class="material-symbols-outlined text-[18px] absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400">search</span>
+        <input id="tool-search" type="search" placeholder="Search name, slug or tag…"
+               class="w-full h-9 pl-9 pr-3 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30">
+      </div>
+      <select id="filter-type" class="h-9 px-3 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm">
+        <option value="">All types</option>
+        <option value="internal">internal</option>
+        <option value="external_url">external_url</option>
+        <option value="folder_path">folder_path</option>
+        <option value="executable">executable</option>
+      </select>
+      <select id="filter-status" class="h-9 px-3 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm">
+        <option value="">Any status</option>
+        <option value="enabled">Enabled</option>
+        <option value="disabled">Disabled</option>
+        <option value="live">Live</option>
+        <option value="soon">Coming soon</option>
+      </select>
+      <span id="filter-count" class="text-xs text-zinc-400"></span>
+    </div>
+
+    <div class="overflow-x-auto">
+      <table class="w-full text-left text-sm">
+        <thead class="bg-zinc-50 dark:bg-zinc-800/50 text-zinc-500 border-b border-zinc-200 dark:border-zinc-800">
+          <tr>
+            <th class="px-3 py-3 font-medium uppercase tracking-wider text-[10px] w-8"></th>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">Tool</th>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">Type</th>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">Status</th>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">Access</th>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px] text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="tools-tbody" class="divide-y divide-zinc-100 dark:divide-zinc-800">
+          {% for t in tools %}
+            {% set tags = t.tags_json|fromjson %}
+            <tr data-id="{{ t.id }}"
+                data-name="{{ t.name|lower }}" data-slug="{{ t.slug|lower }}"
+                data-type="{{ t.launch_type }}"
+                data-enabled="{{ '1' if t.is_enabled else '0' }}"
+                data-status="{{ t.status }}"
+                data-tags="{{ tags|join(',')|lower }}"
+                class="tool-row hover:bg-zinc-50/60 dark:hover:bg-zinc-800/40 transition-colors {% if not t.is_enabled %}opacity-55{% endif %}">
+              <td class="px-3 py-3 text-center">
+                <span class="drag-handle cursor-grab active:cursor-grabbing text-zinc-300 hover:text-zinc-500 dark:text-zinc-600" title="Drag to reorder">
+                  <span class="material-symbols-outlined text-[18px] align-middle">drag_indicator</span>
+                </span>
+              </td>
+              <td class="px-5 py-3">
+                <div class="flex items-center gap-3">
+                  <div class="h-9 w-9 rounded-lg bg-brand-500/15 ring-1 ring-brand-500/20 flex items-center justify-center text-brand-600 dark:text-brand-300 shrink-0 overflow-hidden">
+                    {% if t.icon_type == 'image' %}
+                      <img src="{{ url_for('static', filename='tool-icons/' ~ t.icon) }}" alt="" class="h-9 w-9 object-cover">
+                    {% else %}
+                      <span class="material-symbols-outlined text-[20px]">{{ t.icon }}</span>
+                    {% endif %}
+                  </div>
+                  <div class="min-w-0">
+                    <div class="font-medium truncate">{{ t.name }}</div>
+                    <div class="text-[11px] text-zinc-400 font-mono truncate">{{ t.slug }}</div>
+                    {% if tags %}
+                      <div class="flex flex-wrap gap-1 mt-1">
+                        {% for tag in tags %}<span class="text-[10px] px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500">{{ tag }}</span>{% endfor %}
+                      </div>
+                    {% endif %}
+                  </div>
+                </div>
+              </td>
+              <td class="px-5 py-3">
+                <span class="font-mono text-[11px] px-2 py-0.5 rounded-md bg-zinc-100 dark:bg-zinc-800 text-zinc-500">{{ t.launch_type }}</span>
+              </td>
+              <td class="px-5 py-3">
+                {% if not t.is_enabled %}
+                  <span class="inline-flex items-center gap-1 text-[11px] font-medium text-zinc-500"><span class="w-1.5 h-1.5 rounded-full bg-zinc-400"></span> disabled</span>
+                {% elif t.status == 'live' %}
+                  <span class="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> live</span>
+                {% else %}
+                  <span class="inline-flex items-center gap-1 text-[11px] font-medium text-amber-600 dark:text-amber-400"><span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span> soon</span>
+                {% endif %}
+              </td>
+              <td class="px-5 py-3 text-xs text-zinc-500">{{ access_summary.get(t.id, '—') }}</td>
+              <td class="px-5 py-3">
+                <div class="flex items-center justify-end gap-1">
+                  <a href="{{ url_for('portal_admin.tool_edit', tool_id=t.id) }}" title="Edit"
+                     class="p-1.5 rounded-md text-zinc-500 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors">
+                    <span class="material-symbols-outlined text-[18px]">edit</span>
+                  </a>
+                  <a href="{{ url_for('portal_admin.tool_access', tool_id=t.id) }}" title="Team access"
+                     class="p-1.5 rounded-md text-zinc-500 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors">
+                    <span class="material-symbols-outlined text-[18px]">lock_person</span>
+                  </a>
+                  <form method="post" action="{{ url_for('portal_admin.tool_toggle', tool_id=t.id) }}" class="inline">
+                    <button type="submit" title="{{ 'Disable' if t.is_enabled else 'Enable' }}"
+                            class="p-1.5 rounded-md text-zinc-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors">
+                      <span class="material-symbols-outlined text-[18px]">{{ 'toggle_on' if t.is_enabled else 'toggle_off' }}</span>
+                    </button>
+                  </form>
+                  <form method="post" action="{{ url_for('portal_admin.tool_delete', tool_id=t.id) }}" class="inline"
+                        onsubmit="return confirm('Delete tool \'{{ t.name }}\'? This cannot be undone.');">
+                    <button type="submit" title="Delete"
+                            class="p-1.5 rounded-md text-zinc-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors">
+                      <span class="material-symbols-outlined text-[18px]">delete</span>
+                    </button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          {% else %}
+            <tr><td colspan="6" class="p-10 text-center text-sm text-zinc-500">No tools yet. Click “New tool” to add one.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <p class="text-xs text-zinc-400 dark:text-zinc-500">
+    Drag rows to set the order shown on every dashboard — no manual numbers needed.
+    Disabled tools are hidden from every dashboard. Team-gated tools only appear for members
+    of the teams you grant on the <span class="material-symbols-outlined text-[13px] align-middle">lock_person</span> access screen.
+  </p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+<script>
+  (function () {
+    const tbody = document.getElementById('tools-tbody');
+    const reorderUrl = "{{ url_for('portal_admin.tools_reorder') }}";
+
+    // ── Drag-and-drop ordering (persisted on drop) ──────────────────────
+    if (tbody && window.Sortable) {
+      new Sortable(tbody, {
+        handle: '.drag-handle',
+        animation: 150,
+        ghostClass: 'bg-brand-50',
+        onEnd: function () {
+          const order = Array.from(tbody.querySelectorAll('tr.tool-row'))
+                             .map(tr => parseInt(tr.dataset.id, 10))
+                             .filter(Number.isInteger);
+          fetch(reorderUrl, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({order: order}),
+          }).catch(() => {/* order still applied visually; refresh re-reads DB */});
+        },
+      });
+    }
+
+    // ── Client-side search + filters ────────────────────────────────────
+    const q = document.getElementById('tool-search');
+    const ft = document.getElementById('filter-type');
+    const fs = document.getElementById('filter-status');
+    const count = document.getElementById('filter-count');
+    function apply() {
+      const term = (q.value || '').trim().toLowerCase();
+      const type = ft.value, status = fs.value;
+      let shown = 0;
+      tbody.querySelectorAll('tr.tool-row').forEach(tr => {
+        const d = tr.dataset;
+        let ok = true;
+        if (term) ok = (d.name.includes(term) || d.slug.includes(term) || (d.tags || '').includes(term));
+        if (ok && type) ok = d.type === type;
+        if (ok && status === 'enabled')  ok = d.enabled === '1';
+        if (ok && status === 'disabled') ok = d.enabled === '0';
+        if (ok && status === 'live')     ok = d.status === 'live';
+        if (ok && status === 'soon')     ok = d.status === 'soon';
+        tr.style.display = ok ? '' : 'none';
+        if (ok) shown++;
+      });
+      count.textContent = shown + ' shown';
+    }
+    [q, ft, fs].forEach(el => el && el.addEventListener('input', apply));
+    apply();
+  })();
+</script>
+{% endblock %}

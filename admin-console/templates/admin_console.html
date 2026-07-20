@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Admin console · {{ platform_name }}{% endblock %}
+{% block page_title %}Admin console{% endblock %}
+
+{% block content %}
+<div class="space-y-8">
+
+  {# ── At-a-glance stats ─────────────────────────────────────────────── #}
+  <section class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    {% set tiles = [
+      {"label": "Tools",            "value": stats.tools_count,           "icon": "apps",            "href": url_for('portal_admin.tools')},
+      {"label": "Users",            "value": stats.users_count,           "icon": "group",           "href": url_for('admin.users')},
+      {"label": "Teams",            "value": stats.teams_count,           "icon": "group_work",      "href": url_for('teams.admin_teams')},
+      {"label": "Pending requests", "value": stats.pending_team_requests, "icon": "how_to_reg",      "href": url_for('teams.admin_requests')}
+    ] %}
+    {% for t in tiles %}
+      <a href="{{ t.href }}"
+         class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-5 shadow-sm hover:border-brand-400/50 hover:shadow-md transition-all">
+        <div class="flex items-center justify-between">
+          <span class="text-[11px] uppercase tracking-wider text-zinc-500 font-semibold">{{ t.label }}</span>
+          <span class="material-symbols-outlined text-[18px] text-zinc-400">{{ t.icon }}</span>
+        </div>
+        <div class="mt-2 text-2xl font-bold tabular-nums {% if t.label == 'Pending requests' and t.value > 0 %}text-amber-600 dark:text-amber-400{% endif %}">{{ t.value }}</div>
+      </a>
+    {% endfor %}
+  </section>
+
+  {# ── Capability groups ─────────────────────────────────────────────── #}
+  {% for section in sections %}
+    <section>
+      <h2 class="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-3">{{ section.group }}</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {% for card in section.cards %}
+          {% set badge_val = stats.get(card.badge) if card.badge else None %}
+          <a href="{{ url_for(card.endpoint) }}"
+             class="group relative bg-white dark:bg-zinc-900 border rounded-xl p-5 shadow-sm transition-all
+                    hover:-translate-y-0.5 hover:shadow-md
+                    {% if card.primary %}border-brand-300 dark:border-brand-700 ring-1 ring-brand-500/20{% else %}border-zinc-200 dark:border-zinc-800 hover:border-brand-400/50{% endif %}">
+            <div class="flex items-start gap-4">
+              <div class="h-11 w-11 rounded-xl flex items-center justify-center shrink-0
+                          {% if card.primary %}bg-brand-500/15 text-brand-600 dark:text-brand-300 ring-1 ring-brand-500/20{% else %}bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400{% endif %}">
+                <span class="material-symbols-outlined text-[22px]">{{ card.icon }}</span>
+              </div>
+              <div class="min-w-0">
+                <div class="flex items-center gap-2">
+                  <h3 class="text-sm font-semibold">{{ card.title }}</h3>
+                  {% if card.primary %}
+                    <span class="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-brand-500/15 text-brand-600 dark:text-brand-300">Configure tiles</span>
+                  {% endif %}
+                  {% if badge_val and badge_val > 0 %}
+                    <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded-full
+                                 {% if card.badge == 'pending_team_requests' %}bg-amber-500 text-white{% else %}bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300{% endif %}">{{ badge_val }}</span>
+                  {% endif %}
+                </div>
+                <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">{{ card.desc }}</p>
+              </div>
+              <span class="material-symbols-outlined text-[18px] text-zinc-300 dark:text-zinc-600 ml-auto self-center group-hover:text-brand-500 group-hover:translate-x-0.5 transition-all">arrow_forward</span>
+            </div>
+          </a>
+        {% endfor %}
+      </div>
+    </section>
+  {% endfor %}
+</div>
+{% endblock %}

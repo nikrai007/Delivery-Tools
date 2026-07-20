@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Security policy · {{ platform_name }}{% endblock %}
+{% block page_title %}Security policy{% endblock %}
+
+{% set field = "w-full h-9 px-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500/30" %}
+{% set lbl = "text-[13px] font-medium text-zinc-700 dark:text-zinc-300" %}
+
+{% macro toggle(name, label, checked) -%}
+  <label class="flex items-center gap-2">
+    <input type="checkbox" name="{{ name }}" value="1" {% if checked %}checked{% endif %} class="rounded border-zinc-300 dark:border-zinc-700 text-brand-600 focus:ring-brand-500">
+    <span>{{ label }}</span>
+  </label>
+{%- endmacro %}
+
+{% block content %}
+<form method="post" action="{{ url_for('admin.security_policy') }}" class="max-w-3xl space-y-6">
+
+  {# ── Password policy ── #}
+  <section class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm p-6">
+    <h2 class="text-sm font-semibold mb-4">Password policy</h2>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div class="space-y-1.5">
+        <label class="{{ lbl }}">Minimum length</label>
+        <input name="pw_min_length" type="number" min="4" max="128" value="{{ pw_min_length }}" class="{{ field }}">
+      </div>
+      <div class="space-y-2 text-sm pt-6">
+        {{ toggle('pw_require_upper', 'Require an uppercase letter', pw_require_upper) }}
+        {{ toggle('pw_require_lower', 'Require a lowercase letter', pw_require_lower) }}
+        {{ toggle('pw_require_digit', 'Require a digit', pw_require_digit) }}
+        {{ toggle('pw_require_symbol', 'Require a symbol', pw_require_symbol) }}
+      </div>
+    </div>
+  </section>
+
+  {# ── Login protection ── #}
+  <section class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm p-6">
+    <h2 class="text-sm font-semibold mb-4">Login protection</h2>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+      <div class="space-y-1.5">
+        <label class="{{ lbl }}">Lockout after N failed attempts <span class="text-zinc-400 font-normal">(0 = off)</span></label>
+        <input name="lockout_threshold" type="number" min="0" max="100" value="{{ lockout_threshold }}" class="{{ field }}">
+      </div>
+      <div class="space-y-1.5">
+        <label class="{{ lbl }}">Lockout duration (minutes)</label>
+        <input name="lockout_minutes" type="number" min="1" max="1440" value="{{ lockout_minutes }}" class="{{ field }}">
+      </div>
+      <div class="space-y-1.5">
+        <label class="{{ lbl }}">Rate limit: max attempts per IP <span class="text-zinc-400 font-normal">(0 = off)</span></label>
+        <input name="ratelimit_max" type="number" min="0" max="1000" value="{{ ratelimit_max }}" class="{{ field }}">
+      </div>
+      <div class="space-y-1.5">
+        <label class="{{ lbl }}">Rate limit window (seconds)</label>
+        <input name="ratelimit_window" type="number" min="10" max="3600" value="{{ ratelimit_window }}" class="{{ field }}">
+      </div>
+    </div>
+  </section>
+
+  {# ── Sessions & 2FA ── #}
+  <section class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm p-6">
+    <h2 class="text-sm font-semibold mb-4">Sessions & two-factor</h2>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+      <div class="space-y-1.5">
+        <label class="{{ lbl }}">Session inactivity timeout (minutes)</label>
+        <input name="session_timeout_minutes" type="number" min="1" max="480" value="{{ session_timeout_minutes }}" class="{{ field }}">
+      </div>
+      <div class="pt-6">
+        {{ toggle('require_admin_2fa', 'Require administrators to enable 2FA', require_admin_2fa) }}
+        <p class="text-[11px] text-zinc-500 mt-1">Admins without 2FA are prompted to enrol from their security page.</p>
+      </div>
+    </div>
+  </section>
+
+  <button type="submit" class="h-10 px-5 bg-brand-600 hover:bg-brand-700 text-white font-medium rounded-lg shadow-sm">Save security policy</button>
+</form>
+{% endblock %}

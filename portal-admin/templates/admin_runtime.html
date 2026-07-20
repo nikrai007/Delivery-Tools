@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Tool runtime · {{ platform_name }}{% endblock %}
+{% block page_title %}Tool runtime{% endblock %}
+
+{% macro state_badge(st) -%}
+  {% set s = st.state if st else 'stopped' %}
+  {% set cls = {
+    'healthy':  'text-emerald-600 dark:text-emerald-400', 'running': 'text-emerald-600 dark:text-emerald-400',
+    'starting': 'text-amber-600 dark:text-amber-400', 'stopped':  'text-zinc-500',
+    'crashed':  'text-rose-600 dark:text-rose-400', 'exited':   'text-zinc-500'
+  } %}
+  {% set dot = {
+    'healthy':'bg-emerald-500','running':'bg-emerald-500','starting':'bg-amber-500',
+    'stopped':'bg-zinc-400','crashed':'bg-rose-500','exited':'bg-zinc-400'
+  } %}
+  <span class="inline-flex items-center gap-1.5 text-[11px] font-semibold {{ cls.get(s,'text-zinc-500') }}">
+    <span class="w-2 h-2 rounded-full {{ dot.get(s,'bg-zinc-400') }}"></span>{{ s }}
+  </span>
+{%- endmacro %}
+
+{% block content %}
+<div class="space-y-6" data-status-url="{{ url_for('portal_admin.runtime_status') }}">
+  <p class="text-sm text-zinc-500">Python-app and executable tools run as managed processes on the host. Web apps that bind a port are reachable once healthy.</p>
+
+  <section class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="w-full text-left text-sm">
+        <thead class="bg-zinc-50 dark:bg-zinc-800/50 text-zinc-500 border-b border-zinc-200 dark:border-zinc-800">
+          <tr>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">Tool</th>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">State</th>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">PID</th>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">URL</th>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px]">Since</th>
+            <th class="px-5 py-3 font-medium uppercase tracking-wider text-[10px] text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-zinc-100 dark:divide-zinc-800">
+          {% for r in rows %}
+            {% set t = r.tool %}{% set st = r.status %}
+            <tr>
+              <td class="px-5 py-3">
+                <div class="font-medium">{{ t.name }}</div>
+                <div class="text-[11px] text-zinc-400 font-mono">{{ t.slug }} · {{ t.launch_type }}</div>
+              </td>
+              <td class="px-5 py-3" data-cell="state-{{ t.slug }}">{{ state_badge(st) }}
+                {% if st.exit_code is defined and st.exit_code %}<span class="text-[10px] text-rose-500 ml-1">exit {{ st.exit_code }}</span>{% endif %}
+              </td>
+              <td class="px-5 py-3 tabular-nums text-zinc-500" data-cell="pid-{{ t.slug }}">{{ st.pid or '—' }}</td>
+              <td class="px-5 py-3">
+                {% if st.url %}<a href="{{ st.url }}" target="_blank" rel="noopener" class="text-brand-600 hover:underline font-mono text-xs">{{ st.url }}</a>{% else %}<span class="text-zinc-400">—</span>{% endif %}
+              </td>
+              <td class="px-5 py-3 text-xs text-zinc-400 tabular-nums">{{ (st.started_at or '')[11:19] or '—' }}</td>
+              <td class="px-5 py-3">
+                <div class="flex items-center justify-end gap-1">
+                  <form method="post" action="{{ url_for('portal_admin.tool_process', tool_id=t.id, action='start') }}" class="inline">
+                    <button title="Start" class="p-1.5 rounded-md text-zinc-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20"><span class="material-symbols-outlined text-[18px]">play_arrow</span></button>
+                  </form>
+                  <form method="post" action="{{ url_for('portal_admin.tool_process', tool_id=t.id, action='restart') }}" class="inline">
+                    <button title="Restart" class="p-1.5 rounded-md text-zinc-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20"><span class="material-symbols-outlined text-[18px]">restart_alt</span></button>
+                  </form>
+                  <form method="post" action="{{ url_for('portal_admin.tool_process', tool_id=t.id, action='stop') }}" class="inline">
+                    <button title="Stop" class="p-1.5 rounded-md text-zinc-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20"><span class="material-symbols-outlined text-[18px]">stop</span></button>
+                  </form>
+                  <a href="{{ url_for('portal_admin.tool_process_log', tool_id=t.id) }}" target="_blank" title="View log" class="p-1.5 rounded-md text-zinc-500 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-900/20"><span class="material-symbols-outlined text-[18px]">description</span></a>
+                </div>
+              </td>
+            </tr>
+          {% else %}
+            <tr><td colspan="6" class="p-10 text-center text-sm text-zinc-500">No process-backed tools. Add a tool with launch type <span class="font-mono">folder_path</span> or <span class="font-mono">executable</span>.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  <p class="text-xs text-zinc-400">Processes are supervised by the portal and stopped gracefully on shutdown. Logs stream to <span class="font-mono">logs/tools/&lt;slug&gt;.log</span>.</p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Lightweight live refresh of state/PID cells (every 10s).
+  (function () {
+    const url = document.querySelector('[data-status-url]')?.dataset.statusUrl;
+    if (!url) return;
+    setInterval(function () {
+      fetch(url).then(r => r.json()).then(function (data) {
+        Object.entries(data.statuses || {}).forEach(function ([slug, st]) {
+          const pid = document.querySelector('[data-cell="pid-' + slug + '"]');
+          if (pid) pid.textContent = st.pid || '—';
+        });
+      }).catch(() => {});
+    }, 10000);
+  })();
+</script>
+{% endblock %}

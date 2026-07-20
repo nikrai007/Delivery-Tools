@@ -1,0 +1,286 @@
+{% extends "base.html" %}
+{% from "xpm_macros.html" import toolbar, config_picker_js %}
+{% from "_edit_content.html" import edit_button with context %}
+{% block title %}Batch explorer · XPM Automator{% endblock %}
+{% block page_title %}XPM Automator{% endblock %}
+
+{% block content %}
+{{ toolbar('Batch explorer', 'Browse every migration script currently in the project', 'travel_explore') }}
+
+{% set field = 'h-10 px-3 bg-zinc-50 dark:bg-zinc-800/70 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500' %}
+{% set lbl = 'block text-[11px] font-medium text-zinc-500 mb-1' %}
+
+{# ─── Connect to XPM — single horizontal toolbar ──────────────────────────── #}
+<form id="explorerForm" onsubmit="return false"
+      class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm p-4">
+  <div class="flex flex-col xl:flex-row xl:items-end gap-3">
+    <label class="block xl:w-64">
+      <span class="{{ lbl }}">XPM URL</span>
+      <input name="base_url" type="text" value="{{ cfg.base_url }}" class="{{ field }} font-mono w-full">
+    </label>
+    <label class="block xl:w-44">
+      <span class="{{ lbl }}">Username</span>
+      <input name="username" type="text" value="{{ cfg.username }}" class="{{ field }} w-full" autocomplete="username">
+    </label>
+    <label class="block xl:w-40">
+      <span class="{{ lbl }}">Password <span class="text-rose-500">*</span></span>
+      <input name="password" type="password" value="{{ cfg.password }}" required class="{{ field }} w-full" autocomplete="current-password">
+    </label>
+    <label class="block flex-1 min-w-[12rem]">
+      <span class="{{ lbl }} flex items-center justify-between gap-2">
+        <span>Project</span>
+        <button type="button" id="fetchProjects" class="text-brand-600 hover:text-brand-700 font-semibold inline-flex items-center gap-1">
+          <span class="material-symbols-outlined text-[14px]">sync</span>Fetch
+        </button>
+      </span>
+      <select name="project_name" id="projectSelect" class="{{ field }} w-full">
+        <option value="{{ cfg.project_name }}" data-id="{{ cfg.project_id }}" selected>{{ cfg.project_name }}</option>
+      </select>
+      <input type="hidden" name="project_id" id="projectId" value="{{ cfg.project_id }}">
+    </label>
+    <label class="block xl:w-52">
+      <span class="{{ lbl }}">Process filter</span>
+      <select name="process_name" id="processSelect" class="{{ field }} w-full">
+        <option value="" data-all selected>All processes</option>
+      </select>
+    </label>
+    <button type="button" id="fetchBatches"
+            class="h-10 px-5 inline-flex items-center justify-center gap-2 rounded-lg bg-brand-600 hover:bg-brand-700 text-white font-medium shadow-sm shadow-brand-500/25 transition-all hover:-translate-y-0.5 active:translate-y-0 shrink-0">
+      <span class="material-symbols-outlined text-[18px]">travel_explore</span>Fetch batches
+    </button>
+  </div>
+  <p id="projectHint" class="mt-2 text-[11px] text-zinc-400">{{ content('xpm_explorer', 'hint', 'Fetch to pick a project live — its processes load automatically. Requires the Noida office VPN.') }}</p>
+</form>
+{{ edit_button('xpm_explorer') }}
+
+{# ─── Scripts grid — fills remaining space, scrolls, paginates ────────────── #}
+<div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm overflow-hidden flex flex-col">
+  <div class="px-5 py-3 border-b border-zinc-100 dark:border-zinc-800 flex flex-wrap items-center justify-between gap-3">
+    <div>
+      <h3 class="text-sm font-semibold">Scripts in project</h3>
+      <p class="text-xs text-zinc-500"><span id="gridSummary">Connect to load the list</span></p>
+    </div>
+    <div class="flex items-center gap-2">
+      <div class="relative">
+        <span class="material-symbols-outlined text-[16px] text-zinc-400 absolute left-2.5 top-1/2 -translate-y-1/2">search</span>
+        <input id="filterInput" type="text" placeholder="Filter…" disabled
+               class="h-9 w-44 pl-8 pr-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 disabled:opacity-50">
+      </div>
+      <label class="text-xs text-zinc-500 flex items-center gap-1.5">
+        <span class="hidden sm:inline">Rows</span>
+        <select id="pageSize" class="h-9 px-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30">
+          <option>25</option><option selected>50</option><option>100</option><option>200</option>
+        </select>
+      </label>
+    </div>
+  </div>
+
+  {# Scroll region for the grid body #}
+  <div class="overflow-auto" style="max-height:min(62vh,44rem)">
+    <table class="w-full text-left text-sm">
+      <thead class="sticky top-0 z-10 bg-zinc-50 dark:bg-zinc-800/90 backdrop-blur text-zinc-500 border-b border-zinc-200 dark:border-zinc-800">
+        <tr id="gridHead">
+          {% set cols = [('batch_no','Batch #','text-right'),('process','Process',''),('script_name','Script name',''),('scripted_by','Scripted by',''),('scripted_on','Scripted on','')] %}
+          {% for key, label, extra in cols %}
+            <th data-key="{{ key }}"
+                class="px-4 py-3 font-medium uppercase tracking-wider text-[10px] cursor-pointer select-none hover:text-brand-600 transition-colors {{ extra }}"
+                tabindex="0" role="columnheader" aria-sort="none">
+              <span class="inline-flex items-center gap-1 {% if extra %}justify-end{% endif %}">{{ label }}<span class="sort-ind material-symbols-outlined text-[14px] opacity-0">unfold_more</span></span>
+            </th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody id="batchBody" class="divide-y divide-zinc-100 dark:divide-zinc-800"></tbody>
+    </table>
+
+    {# States #}
+    <div id="stateEmpty" class="p-12 text-center">
+      <div class="mx-auto h-12 w-12 rounded-2xl bg-brand-500/10 text-brand-500 flex items-center justify-center">
+        <span class="material-symbols-outlined text-[26px]">travel_explore</span>
+      </div>
+      <p class="mt-3 text-sm text-zinc-500">Enter your XPM details and press <span class="font-medium text-zinc-700 dark:text-zinc-300">Fetch batches</span> to browse the project.</p>
+    </div>
+    <div id="stateLoading" class="hidden p-12 text-center text-sm text-zinc-500">
+      <span class="material-symbols-outlined text-[26px] text-brand-500 animate-spin">progress_activity</span>
+      <p class="mt-2">Loading scripts from XPM…</p>
+    </div>
+    <div id="stateError" class="hidden p-12 text-center">
+      <div class="mx-auto h-12 w-12 rounded-2xl bg-rose-500/10 text-rose-500 flex items-center justify-center"><span class="material-symbols-outlined text-[26px]">cloud_off</span></div>
+      <p id="errorMsg" class="mt-3 text-sm text-zinc-500">Could not load batches.</p>
+    </div>
+    <div id="stateNoMatch" class="hidden p-10 text-center text-sm text-zinc-500">No scripts match your filter.</div>
+  </div>
+
+  {# Pagination footer #}
+  <div id="gridFooter" class="hidden px-4 py-3 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between text-sm">
+    <span class="text-zinc-500"><span id="rangeLabel">0–0</span> of <span id="totalLabel">0</span></span>
+    <div class="flex items-center gap-1">
+      <button id="pagePrev" class="h-8 px-3 inline-flex items-center rounded-lg border border-zinc-300 dark:border-zinc-700 disabled:opacity-40 disabled:pointer-events-none">Prev</button>
+      <span id="pageLabel" class="px-2 text-zinc-500 tabular-nums">Page 1 of 1</span>
+      <button id="pageNext" class="h-8 px-3 inline-flex items-center rounded-lg border border-zinc-300 dark:border-zinc-700 disabled:opacity-40 disabled:pointer-events-none">Next</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const form = document.getElementById('explorerForm');
+  const fetchBatchesBtn = document.getElementById('fetchBatches');
+  const body = document.getElementById('batchBody');
+  const tableEl = body.closest('table');   // the grid <table> (body is its <tbody>)
+  const filterInput = document.getElementById('filterInput');
+  const pageSizeSel = document.getElementById('pageSize');
+  const processSel = document.getElementById('processSelect');
+  const summary = document.getElementById('gridSummary');
+  const footer = document.getElementById('gridFooter');
+  const rangeLabel = document.getElementById('rangeLabel');
+  const totalLabel = document.getElementById('totalLabel');
+  const pageLabel = document.getElementById('pageLabel');
+  const prevBtn = document.getElementById('pagePrev');
+  const nextBtn = document.getElementById('pageNext');
+  const S = { empty: 'stateEmpty', loading: 'stateLoading', error: 'stateError', nomatch: 'stateNoMatch' };
+
+  let rows = [];          // all fetched rows
+  let view = [];          // filtered + sorted
+  let sortKey = 'batch_no', sortDir = 'desc';
+  let page = 1;
+  const esc = s => { const d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; };
+
+  function setBusy(b) {
+    fetchBatchesBtn.disabled = b;
+    fetchBatchesBtn.setAttribute('aria-busy', b ? 'true' : 'false');
+    fetchBatchesBtn.innerHTML = b
+      ? '<span class="material-symbols-outlined text-[18px] animate-spin">progress_activity</span>Fetching…'
+      : '<span class="material-symbols-outlined text-[18px]">travel_explore</span>Fetch batches';
+  }
+
+  function applyView() {
+    const q = (filterInput.value || '').toLowerCase().trim();
+    const proc = processSel && processSel.value ? processSel.value : '';   // '' = All processes
+    view = rows.filter(r => {
+      if (proc && (r.process || '') !== proc) return false;
+      if (!q) return true;
+      return [r.batch_no, r.process, r.script_name, r.scripted_by, r.scripted_on]
+        .some(v => String(v == null ? '' : v).toLowerCase().includes(q));
+    });
+    view.sort((a, b) => {
+      let x = a[sortKey], y = b[sortKey];
+      if (sortKey === 'batch_no') { x = +x; y = +y; }
+      else { x = String(x == null ? '' : x).toLowerCase(); y = String(y == null ? '' : y).toLowerCase(); }
+      if (x < y) return sortDir === 'asc' ? -1 : 1;
+      if (x > y) return sortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
+    page = 1;
+    renderPage();
+    document.querySelectorAll('#gridHead th').forEach(th => {
+      const on = th.dataset.key === sortKey;
+      const ind = th.querySelector('.sort-ind');
+      ind.textContent = on ? (sortDir === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'unfold_more';
+      ind.style.opacity = on ? '1' : '0';
+      th.setAttribute('aria-sort', on ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none');
+    });
+  }
+
+  function renderPage() {
+    const size = parseInt(pageSizeSel.value, 10) || 50;
+    const total = view.length;
+    const pages = Math.max(1, Math.ceil(total / size));
+    page = Math.min(page, pages);
+    const start = (page - 1) * size;
+    const slice = view.slice(start, start + size);
+
+    const table = tableEl;
+    if (rows.length === 0) { table.classList.add('hidden'); footer.classList.add('hidden'); return; }
+    document.getElementById(S.nomatch).classList.toggle('hidden', total !== 0);
+    table.classList.toggle('hidden', total === 0);
+    footer.classList.toggle('hidden', total === 0);
+
+    body.innerHTML = slice.map(r =>
+      '<tr class="hover:bg-zinc-50/60 dark:hover:bg-zinc-800/40 transition-colors">' +
+      '<td class="px-4 py-2.5 text-right tabular-nums font-mono text-brand-600 dark:text-brand-300 whitespace-nowrap">' + esc(r.batch_no) + '</td>' +
+      '<td class="px-4 py-2.5 whitespace-nowrap"><span class="inline-flex items-center px-1.5 py-0.5 rounded-md text-[11px] bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300">' + esc(r.process || '—') + '</span></td>' +
+      '<td class="px-4 py-2.5 font-mono text-xs max-w-md truncate" title="' + esc(r.script_name) + '">' + esc(r.script_name || '—') + '</td>' +
+      '<td class="px-4 py-2.5 whitespace-nowrap">' + esc(r.scripted_by || '—') + '</td>' +
+      '<td class="px-4 py-2.5 whitespace-nowrap text-zinc-500 tabular-nums">' + esc(r.scripted_on || '—') + '</td>' +
+      '</tr>').join('');
+
+    rangeLabel.textContent = total ? (start + 1) + '–' + Math.min(start + size, total) : '0–0';
+    totalLabel.textContent = total;
+    pageLabel.textContent = 'Page ' + page + ' of ' + pages;
+    prevBtn.disabled = page <= 1;
+    nextBtn.disabled = page >= pages;
+  }
+
+  async function fetchBatches() {
+    const c = {
+      base_url: form.elements['base_url'].value.trim(),
+      username: form.elements['username'].value.trim(),
+      password: form.elements['password'].value,
+      project_id: document.getElementById('projectId').value,
+      project_name: form.elements['project_name'].value,
+    };
+    if (!c.password) { document.getElementById('projectHint').textContent = 'Enter the password first.'; return; }
+    setBusy(true);
+    try {
+      // All DOM setup lives inside the try so any error still resets the button.
+      document.getElementById('stateEmpty').classList.add('hidden');
+      document.getElementById('stateError').classList.add('hidden');
+      tableEl.classList.add('hidden');
+      footer.classList.add('hidden');
+      document.getElementById('stateLoading').classList.remove('hidden');
+      summary.textContent = 'Loading…';
+      const r = await fetch('{{ url_for("xpm.api_batches") }}', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(c),
+      });
+      const j = await r.json();
+      document.getElementById('stateLoading').classList.add('hidden');
+      if (!j.ok) {
+        document.getElementById('errorMsg').textContent = j.error || 'Could not load batches.';
+        document.getElementById('stateError').classList.remove('hidden');
+        summary.textContent = 'Failed to load';
+        return;
+      }
+      rows = j.batches || [];
+      filterInput.disabled = rows.length === 0;
+      summary.textContent = rows.length + ' script(s)' + (j.project ? ' in ' + j.project : '') + ', newest first';
+      if (rows.length === 0) {
+        tableEl.classList.add('hidden');
+        document.getElementById('stateEmpty').classList.remove('hidden');
+        document.getElementById('stateEmpty').querySelector('p').textContent = 'Connected, but no scripts were found in this project.';
+        return;
+      }
+      applyView();
+    } catch (e) {
+      document.getElementById('stateLoading').classList.add('hidden');
+      document.getElementById('errorMsg').textContent = 'Network error — is the VPN connected?';
+      document.getElementById('stateError').classList.remove('hidden');
+      summary.textContent = 'Failed to load';
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  fetchBatchesBtn.addEventListener('click', fetchBatches);
+  filterInput.addEventListener('input', () => { if (rows.length) applyView(); });
+  pageSizeSel.addEventListener('change', renderPage);
+  processSel.addEventListener('change', () => { if (rows.length) applyView(); });
+  prevBtn.addEventListener('click', () => { page--; renderPage(); });
+  nextBtn.addEventListener('click', () => { page++; renderPage(); });
+
+  document.querySelectorAll('#gridHead th').forEach(th => {
+    const sort = () => {
+      const k = th.dataset.key;
+      if (sortKey === k) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+      else { sortKey = k; sortDir = (k === 'batch_no') ? 'desc' : 'asc'; }
+      if (rows.length) applyView();
+    };
+    th.addEventListener('click', sort);
+    th.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); sort(); } });
+  });
+})();
+</script>
+{{ config_picker_js('explorerForm') }}
+{% endblock %}

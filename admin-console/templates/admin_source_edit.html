@@ -275,7 +275,7 @@
   </section>
 
   <div class="flex justify-end gap-2">
-    <a href="{{ url_for('abr.admin_sources') }}"
+    <a href="{{ url_for('admin.sources') }}"
        class="h-10 px-4 inline-flex items-center rounded-lg border border-zinc-300 dark:border-zinc-700 text-sm">
       Cancel
     </a>
@@ -359,7 +359,7 @@
     // Only the schedule_* fields matter for the preview endpoint, but
     // posting the whole form is harmless and saves us a manual filter.
     try {
-      const r = await fetch("{{ url_for('abr.admin_sources_preview') }}", {
+      const r = await fetch("{{ url_for('admin.sources_preview') }}", {
         method: 'POST', body: fd, credentials: 'same-origin'
       });
       const j = await r.json();

@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Screen content · {{ platform_name }}{% endblock %}
+{% block page_title %}Screen content{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl space-y-5">
+  <div class="flex items-start gap-3">
+    <div class="h-11 w-11 shrink-0 rounded-xl bg-brand-500/15 ring-1 ring-brand-500/25 flex items-center justify-center text-brand-600 dark:text-brand-300">
+      <span class="material-symbols-outlined text-[24px]">edit_note</span>
+    </div>
+    <div>
+      <h2 class="text-lg font-semibold tracking-tight">Editable screen text</h2>
+      <p class="text-sm text-zinc-500">Change titles, help text and notes on registered screens — no deployment needed. Blank a field to restore its built-in default.</p>
+    </div>
+  </div>
+
+  <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm overflow-hidden">
+    {% if screens %}
+      <ul class="divide-y divide-zinc-100 dark:divide-zinc-800">
+        {% for s in screens %}
+          <li class="flex items-center gap-4 px-5 py-4 hover:bg-zinc-50/60 dark:hover:bg-zinc-800/40 transition-colors">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2">
+                <span class="font-medium">{{ s.label }}</span>
+                {% if s.customised %}
+                  <span class="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-brand-50 text-brand-700 dark:bg-brand-900/40 dark:text-brand-300 font-semibold">customised</span>
+                {% endif %}
+              </div>
+              <p class="text-[11px] text-zinc-400 mt-0.5 font-mono">{{ s.key }} · {{ s.field_count }} field(s)</p>
+            </div>
+            {% if s.endpoint %}
+              <a href="{{ url_for(s.endpoint) }}" target="_blank" rel="noopener"
+                 class="text-xs text-zinc-500 hover:text-brand-600 inline-flex items-center gap-1">
+                <span class="material-symbols-outlined text-[15px]">open_in_new</span>View
+              </a>
+            {% endif %}
+            <a href="{{ url_for('admin.edit_screen', key=s.key) }}"
+               class="h-9 px-3 inline-flex items-center gap-1.5 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-xs font-medium shadow-sm">
+              <span class="material-symbols-outlined text-[15px]">edit</span>Edit
+            </a>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <div class="p-12 text-center text-sm text-zinc-500">No editable screens are registered yet.</div>
+    {% endif %}
+  </div>
+
+  <p class="text-xs text-zinc-400">
+    Developers register new editable screens in <code class="font-mono">shared/utilities/screen_content.py</code>
+    and render each field with <code class="font-mono">{{ '{{ content(screen, field, default) }}' }}</code>.
+  </p>
+</div>
+{% endblock %}

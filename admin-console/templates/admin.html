@@ -49,7 +49,7 @@
               <td class="px-5 py-3 whitespace-nowrap">{% include "_status_badge.html" %}</td>
               <td class="px-5 py-3 text-[11px] text-zinc-500 font-mono whitespace-nowrap">{{ j.ip_address or '—' }}</td>
               <td class="px-5 py-3 text-right whitespace-nowrap">
-                <a href="{{ url_for('abr.admin_job', job_id=j.id) }}" class="text-brand-600 hover:text-brand-700 font-semibold text-xs">details →</a>
+                <a href="{{ url_for('admin.job', job_id=j.id) }}" class="text-brand-600 hover:text-brand-700 font-semibold text-xs">details →</a>
               </td>
             </tr>
           {% else %}

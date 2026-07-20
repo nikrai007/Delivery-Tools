@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Approve request · {{ platform_name }}{% endblock %}
+{% block page_title %}Approve join request{% endblock %}
+
+{% block content %}
+<form method="post" action="{{ action }}" class="max-w-2xl space-y-6">
+
+  {# ── Applicant ──────────────────────────────────────────── #}
+  <section class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm p-6">
+    <div class="flex items-center gap-4">
+      <div class="h-12 w-12 rounded-full bg-brand-600 text-white flex items-center justify-center text-lg font-semibold shrink-0">
+        {{ req.username[:1]|upper }}
+      </div>
+      <div class="min-w-0">
+        <h2 class="text-base font-semibold truncate">{{ req.full_name or req.username }}</h2>
+        <p class="text-xs text-zinc-500">
+          {{ req.username }}{% if req.employee_code %} · {{ req.employee_code }}{% endif %}{% if req.email %} · {{ req.email }}{% endif %}
+        </p>
+        <p class="text-xs text-zinc-500 mt-0.5">Requesting to join <span class="font-medium text-zinc-700 dark:text-zinc-300">{{ req.team_name }}</span></p>
+      </div>
+    </div>
+  </section>
+
+  {# ── Mandatory tool access ──────────────────────────────── #}
+  <section class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm p-6 space-y-4">
+    <div>
+      <h2 class="text-sm font-semibold">Grant tool access <span class="text-rose-500">*</span></h2>
+      <p class="text-xs text-zinc-500 mt-0.5">You must choose which tools <b>{{ req.username }}</b> can use before approving.</p>
+    </div>
+
+    <div class="space-y-2">
+      <label class="flex items-center gap-2 text-sm">
+        <input type="radio" name="scope" value="all" class="text-brand-600 focus:ring-brand-500" onchange="scopeChanged()">
+        <span>All tools available to this team</span>
+      </label>
+      <label class="flex items-center gap-2 text-sm">
+        <input type="radio" name="scope" value="specific" class="text-brand-600 focus:ring-brand-500" onchange="scopeChanged()">
+        <span>Only selected tools</span>
+      </label>
+    </div>
+
+    <div id="tool-list" class="hidden border-t border-zinc-100 dark:border-zinc-800 pt-4 space-y-3">
+      <div class="flex items-center justify-between">
+        <span class="text-[11px] uppercase tracking-wider text-zinc-500 font-semibold">Tools</span>
+        <div class="flex gap-2 text-[11px]">
+          <button type="button" onclick="pickAll(true)" class="text-brand-600 hover:underline">Select all</button>
+          <span class="text-zinc-300">·</span>
+          <button type="button" onclick="pickAll(false)" class="text-brand-600 hover:underline">Clear</button>
+        </div>
+      </div>
+      {% if tools %}
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {% for t in tools %}
+            <label class="flex items-center gap-2.5 text-sm px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/40">
+              <input type="checkbox" name="tool_ids" value="{{ t.id }}" class="tool-cb rounded text-brand-600 focus:ring-brand-500">
+              {% if t.icon_type == 'image' %}
+                <img src="{{ url_for('static', filename='tool-icons/' ~ t.icon) }}" alt="" class="h-5 w-5 rounded object-cover">
+              {% else %}
+                <span class="material-symbols-outlined text-[18px] text-zinc-400">{{ t.icon }}</span>
+              {% endif %}
+              <span class="truncate">{{ t.name }}</span>
+            </label>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="text-xs text-zinc-500">No tools are configured for this team yet.</p>
+      {% endif %}
+    </div>
+  </section>
+
+  <div class="flex items-center gap-3">
+    <button type="submit"
+            class="inline-flex items-center gap-1.5 h-10 px-5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors">
+      <span class="material-symbols-outlined text-[18px]">check</span> Approve &amp; grant access
+    </button>
+    <a href="{{ cancel }}"
+       class="inline-flex items-center h-10 px-5 text-sm font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800/60 transition-colors">
+      Cancel
+    </a>
+  </div>
+</form>
+
+<script>
+  function scopeChanged() {
+    var v = document.querySelector('input[name="scope"]:checked');
+    document.getElementById('tool-list').classList.toggle('hidden', !(v && v.value === 'specific'));
+  }
+  function pickAll(state) {
+    document.querySelectorAll('.tool-cb').forEach(function (cb) { cb.checked = state; });
+  }
+</script>
+{% endblock %}

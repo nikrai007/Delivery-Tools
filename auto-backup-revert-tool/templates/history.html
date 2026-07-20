@@ -118,7 +118,7 @@
                     <span class="text-zinc-400">—</span>
                   {% endif %}
                   {% if is_admin %}
-                    <a href="{{ url_for('abr.admin_job', job_id=j.id) }}" class="text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300">details</a>
+                    <a href="{{ url_for('admin.job', job_id=j.id) }}" class="text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300">details</a>
                   {% endif %}
                 </div>
               </td>

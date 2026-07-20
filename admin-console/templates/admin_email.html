@@ -1,0 +1,266 @@
+{% extends "base.html" %}
+{% block title %}Email & notifications · {{ platform_name }}{% endblock %}
+{% block page_title %}Email & notifications{% endblock %}
+
+{% set field = "w-full h-9 px-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500/30" %}
+{% set lbl = "text-[13px] font-medium text-zinc-700 dark:text-zinc-300" %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+  {# ─── SMTP settings ────────────────────────────────────────────────── #}
+  <section class="lg:col-span-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm p-5">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-sm font-semibold">SMTP mailer</h2>
+      {% if configured %}
+        <span class="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> host configured</span>
+      {% else %}
+        <span class="inline-flex items-center gap-1 text-[11px] font-medium text-amber-600 dark:text-amber-400"><span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span> not configured — emails print to the server log</span>
+      {% endif %}
+    </div>
+    <form method="post" action="{{ url_for('admin.email') }}" class="space-y-3 text-sm">
+      <input type="hidden" name="action" value="save_smtp">
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div class="sm:col-span-2 space-y-1.5">
+          <label class="{{ lbl }}">SMTP host</label>
+          <input name="smtp_host" value="{{ cfg.host }}" placeholder="smtp.example.com" class="{{ field }}">
+        </div>
+        <div class="space-y-1.5">
+          <label class="{{ lbl }}">Port</label>
+          <input name="smtp_port" value="{{ cfg.port }}" inputmode="numeric" class="{{ field }}">
+        </div>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div class="space-y-1.5">
+          <label class="{{ lbl }}">Username</label>
+          <input name="smtp_user" value="{{ cfg.user }}" autocomplete="off" class="{{ field }}">
+        </div>
+        <div class="space-y-1.5">
+          <label class="{{ lbl }}">Password {% if cfg.password_set %}<span class="text-emerald-500 font-normal">(set — leave blank to keep)</span>{% endif %}</label>
+          <input name="smtp_password" type="password" autocomplete="new-password" placeholder="{{ '••••••••' if cfg.password_set else '' }}" class="{{ field }}">
+        </div>
+      </div>
+      <div class="space-y-1.5">
+        <label class="{{ lbl }}">From address</label>
+        <input name="smtp_from" value="{{ cfg['from'] }}" placeholder="no-reply@example.com" class="{{ field }}">
+      </div>
+      <div class="flex flex-wrap items-center gap-6 pt-1">
+        <label class="flex items-center gap-2">
+          <input type="checkbox" name="smtp_starttls" value="1" {% if cfg.starttls %}checked{% endif %} class="rounded border-zinc-300 dark:border-zinc-700 text-brand-600 focus:ring-brand-500">
+          <span>Use STARTTLS</span>
+        </label>
+        <label class="flex items-center gap-2">
+          <input type="checkbox" name="smtp_enabled" value="1" {% if cfg.enabled %}checked{% endif %} class="rounded border-zinc-300 dark:border-zinc-700 text-brand-600 focus:ring-brand-500">
+          <span>Enable sending</span>
+        </label>
+      </div>
+      <button type="submit" class="h-9 px-4 bg-brand-600 hover:bg-brand-700 text-white font-medium rounded-lg shadow-sm">Save SMTP settings</button>
+    </form>
+  </section>
+
+  {# ─── Send test ────────────────────────────────────────────────────── #}
+  <aside class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm p-5">
+    <h3 class="text-sm font-semibold mb-3">Send a test email</h3>
+    <p class="text-xs text-zinc-500 mb-4">Verify the mailer end-to-end. If SMTP isn't set, the message is written to the server log instead.</p>
+    <form method="post" action="{{ url_for('admin.email') }}" class="space-y-3 text-sm">
+      <input type="hidden" name="action" value="send_test">
+      <div class="space-y-1.5">
+        <label class="{{ lbl }}">Recipient</label>
+        <input name="test_to" type="email" required placeholder="you@example.com" class="{{ field }}">
+      </div>
+      <button type="submit" class="w-full h-9 bg-zinc-800 dark:bg-zinc-700 hover:bg-zinc-900 text-white font-medium rounded-lg">
+        <span class="material-symbols-outlined text-[16px] align-middle mr-1">send</span>Send test
+      </button>
+    </form>
+  </aside>
+
+  {# ─── Templates ────────────────────────────────────────────────────── #}
+  {% macro tpl_editor(t) %}
+    <details class="tpl-item border border-zinc-200 dark:border-zinc-800 rounded-lg" data-key="{{ t.key }}" {% if t.custom %}open{% endif %}>
+      <summary class="cursor-pointer select-none px-4 py-2.5 flex items-center gap-2 font-medium">
+        <span class="material-symbols-outlined text-[16px] text-zinc-400">{{ 'draft' if t.custom else 'mail' }}</span>
+        {{ t.label }}
+        {% if t.custom %}
+          <span class="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-violet-50 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300 font-semibold">custom</span>
+        {% elif t.is_overridden %}
+          <span class="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-brand-50 text-brand-700 dark:bg-brand-900/40 dark:text-brand-300 font-semibold">customized</span>
+        {% endif %}
+        <span class="ml-auto text-[10px] font-mono text-zinc-400">{{ t.key }}</span>
+      </summary>
+      <div class="px-4 pb-4 pt-1 space-y-2">
+        <div class="space-y-1.5">
+          <label class="{{ lbl }}">Subject</label>
+          <input name="tpl_{{ t.key }}_subject" data-role="subject" value="{{ t.subject }}" class="{{ field }} font-mono text-[13px]">
+        </div>
+        <div class="space-y-1.5">
+          <label class="{{ lbl }}">Body</label>
+          <textarea name="tpl_{{ t.key }}_body" data-role="body" rows="5" class="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg font-mono text-[13px] focus:outline-none focus:ring-2 focus:ring-brand-500/30">{{ t.body }}</textarea>
+        </div>
+        <div class="flex items-center gap-2 pt-1">
+          <button type="button" class="tpl-preview h-8 px-3 inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 text-xs font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800" data-key="{{ t.key }}">
+            <span class="material-symbols-outlined text-[15px]">visibility</span>Preview
+          </button>
+          {% if t.custom %}
+            <button type="button" class="tpl-delete h-8 px-3 inline-flex items-center gap-1.5 rounded-lg border border-rose-300 dark:border-rose-800 text-rose-600 text-xs font-medium hover:bg-rose-50 dark:hover:bg-rose-900/20" data-key="{{ t.key }}" data-label="{{ t.label }}">
+              <span class="material-symbols-outlined text-[15px]">delete</span>Delete
+            </button>
+          {% endif %}
+        </div>
+      </div>
+    </details>
+  {% endmacro %}
+
+  <section class="lg:col-span-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm p-5">
+    <div class="mb-4 flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <h2 class="text-sm font-semibold">Notification templates</h2>
+        <p class="text-xs text-zinc-500 mt-0.5">
+          Use <code class="font-mono">$placeholders</code> in the subject and body. Leave a built-in field blank to restore its default.
+        </p>
+      </div>
+    </div>
+
+    {# Placeholder reference #}
+    <div class="mb-4 flex flex-wrap gap-1.5">
+      <span class="text-[11px] text-zinc-500 mr-1 self-center">Available variables:</span>
+      {% for p in placeholders %}
+        <button type="button" class="ph-chip text-[11px] font-mono px-2 py-0.5 rounded-md bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-brand-50 hover:text-brand-700 dark:hover:bg-brand-900/40 transition-colors" data-ph="${{ p }}" title="Insert into the focused field">${{ p }}</button>
+      {% endfor %}
+      <span class="ph-chip-static text-[11px] font-mono px-2 py-0.5 rounded-md bg-zinc-100 dark:bg-zinc-800 text-zinc-500">$platform_name</span>
+      <span class="ph-chip-static text-[11px] font-mono px-2 py-0.5 rounded-md bg-zinc-100 dark:bg-zinc-800 text-zinc-500">$app_name</span>
+      <span class="ph-chip-static text-[11px] font-mono px-2 py-0.5 rounded-md bg-zinc-100 dark:bg-zinc-800 text-zinc-500">$login_url</span>
+    </div>
+
+    <form id="tplForm" method="post" action="{{ url_for('admin.email') }}" class="space-y-3 text-sm">
+      <input type="hidden" name="action" value="save_templates">
+      <div class="space-y-3">
+        <p class="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Built-in events</p>
+        {% for t in templates %}{{ tpl_editor(t) }}{% endfor %}
+      </div>
+      {% if custom_templates %}
+        <div class="space-y-3 pt-2">
+          <p class="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Custom templates</p>
+          {% for t in custom_templates %}{{ tpl_editor(t) }}{% endfor %}
+        </div>
+      {% endif %}
+      <button type="submit" class="h-9 px-4 bg-brand-600 hover:bg-brand-700 text-white font-medium rounded-lg shadow-sm">Save templates</button>
+    </form>
+
+    {# Add a custom template #}
+    <div class="mt-6 pt-5 border-t border-zinc-200 dark:border-zinc-800">
+      <h3 class="text-sm font-semibold mb-3 flex items-center gap-2"><span class="material-symbols-outlined text-[18px] text-brand-500">add_circle</span>Add a custom template</h3>
+      <form method="post" action="{{ url_for('admin.email') }}" class="space-y-3 text-sm">
+        <input type="hidden" name="action" value="add_template">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div class="space-y-1.5">
+            <label class="{{ lbl }}">Key <span class="text-zinc-400 font-normal">(unique id)</span></label>
+            <input name="new_key" required pattern="[a-z][a-z0-9_]{1,39}" placeholder="e.g. welcome_note" class="{{ field }} font-mono" title="Start with a letter; lowercase letters, digits, underscore; 2–40 chars">
+          </div>
+          <div class="space-y-1.5">
+            <label class="{{ lbl }}">Label</label>
+            <input name="new_label" required placeholder="e.g. Welcome note" class="{{ field }}">
+          </div>
+        </div>
+        <div class="space-y-1.5">
+          <label class="{{ lbl }}">Subject</label>
+          <input name="new_subject" required placeholder="Welcome to $platform_name, $full_name" class="{{ field }} font-mono text-[13px]">
+        </div>
+        <div class="space-y-1.5">
+          <label class="{{ lbl }}">Body</label>
+          <textarea name="new_body" rows="4" required placeholder="Hello $full_name,&#10;&#10;…" class="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg font-mono text-[13px] focus:outline-none focus:ring-2 focus:ring-brand-500/30"></textarea>
+        </div>
+        <button type="submit" class="h-9 px-4 bg-brand-600 hover:bg-brand-700 text-white font-medium rounded-lg shadow-sm">Add template</button>
+      </form>
+    </div>
+  </section>
+</div>
+
+{# Hidden per-custom-template delete forms (posted by the Delete buttons) #}
+{% for t in custom_templates %}
+  <form id="del-{{ t.key }}" method="post" action="{{ url_for('admin.email') }}" class="hidden">
+    <input type="hidden" name="action" value="delete_template">
+    <input type="hidden" name="del_key" value="{{ t.key }}">
+  </form>
+{% endfor %}
+
+{# Preview modal #}
+<div id="previewModal" class="hidden fixed inset-0 z-[999] flex items-center justify-center p-4 bg-zinc-900/60 backdrop-blur-sm">
+  <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden" role="dialog" aria-modal="true" aria-labelledby="previewTitle">
+    <div class="flex items-center justify-between px-5 py-3 border-b border-zinc-100 dark:border-zinc-800">
+      <h3 id="previewTitle" class="text-sm font-semibold">Preview <span class="text-xs font-normal text-zinc-400">(sample data)</span></h3>
+      <button type="button" id="previewClose" class="p-1 rounded-md text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200" aria-label="Close preview"><span class="material-symbols-outlined text-[20px]">close</span></button>
+    </div>
+    <div class="p-5 space-y-3">
+      <div>
+        <p class="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold mb-1">Subject</p>
+        <p id="previewSubject" class="text-sm font-medium break-words"></p>
+      </div>
+      <div>
+        <p class="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold mb-1">Body</p>
+        <pre id="previewBody" class="text-[13px] whitespace-pre-wrap break-words bg-zinc-50 dark:bg-zinc-800 rounded-lg p-3 max-h-72 overflow-y-auto"></pre>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const modal = document.getElementById('previewModal');
+  const pSubj = document.getElementById('previewSubject');
+  const pBody = document.getElementById('previewBody');
+  const previewUrlBase = "{{ url_for('admin.email') }}/preview/";
+
+  function openModal() { modal.classList.remove('hidden'); }
+  function closeModal() { modal.classList.add('hidden'); }
+  document.getElementById('previewClose').addEventListener('click', closeModal);
+  modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+  // Live preview of the current (unsaved) editor content.
+  document.querySelectorAll('.tpl-preview').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const item = btn.closest('.tpl-item');
+      const subject = item.querySelector('[data-role=subject]').value;
+      const body = item.querySelector('[data-role=body]').value;
+      const fd = new FormData(); fd.append('subject', subject); fd.append('body', body);
+      pSubj.textContent = 'Rendering…'; pBody.textContent = '';
+      openModal();
+      try {
+        const r = await fetch(previewUrlBase + encodeURIComponent(btn.dataset.key), { method: 'POST', body: fd });
+        const j = await r.json();
+        pSubj.textContent = j.subject || '(empty subject)';
+        pBody.textContent = j.body || '(empty body)';
+      } catch (e) { pSubj.textContent = 'Preview failed.'; }
+    });
+  });
+
+  // Delete a custom template (submits its hidden form).
+  document.querySelectorAll('.tpl-delete').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (confirm('Delete the custom template “' + btn.dataset.label + '”? This cannot be undone.')) {
+        document.getElementById('del-' + btn.dataset.key).submit();
+      }
+    });
+  });
+
+  // Insert a placeholder into the last-focused subject/body field.
+  let lastField = null;
+  document.querySelectorAll('#tplForm [data-role], form [name^="new_"]').forEach(el => {
+    if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') el.addEventListener('focus', () => { lastField = el; });
+  });
+  document.querySelectorAll('.ph-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      if (!lastField) return;
+      const s = lastField.selectionStart ?? lastField.value.length;
+      const e = lastField.selectionEnd ?? lastField.value.length;
+      lastField.value = lastField.value.slice(0, s) + chip.dataset.ph + lastField.value.slice(e);
+      lastField.focus();
+      const pos = s + chip.dataset.ph.length;
+      lastField.setSelectionRange(pos, pos);
+    });
+  });
+})();
+</script>
+{% endblock %}

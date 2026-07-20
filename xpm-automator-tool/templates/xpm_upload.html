@@ -1,0 +1,294 @@
+{% extends "base.html" %}
+{% from "xpm_macros.html" import toolbar, config_picker_js %}
+{% from "_edit_content.html" import edit_button with context %}
+{% block title %}New upload · XPM Automator{% endblock %}
+{% block page_title %}XPM Automator{% endblock %}
+
+{% block content %}
+{{ toolbar('New run', 'Upload migration scripts, or download a batch range from XPM') }}
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+  <form id="xpmForm" method="post" enctype="multipart/form-data"
+        action="{{ url_for('xpm.new_run') }}" class="lg:col-span-2 space-y-5">
+    <input type="hidden" name="mode" id="modeField" value="upload">
+
+    {# ─── Mode switch ─────────────────────────────────────────────────── #}
+    <div class="inline-flex p-1 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-sm border border-zinc-200/70 dark:border-zinc-800">
+      <button type="button" data-mode="upload"
+              class="mode-tab inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg font-medium transition-all bg-white dark:bg-zinc-900 shadow-sm text-brand-600 ring-1 ring-black/5 dark:ring-white/5">
+        <span class="material-symbols-outlined text-[17px]">upload_file</span>Upload scripts
+      </button>
+      <button type="button" data-mode="batch_download"
+              class="mode-tab inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg font-medium transition-all text-zinc-500">
+        <span class="material-symbols-outlined text-[17px]">download</span>Download range
+      </button>
+    </div>
+
+    {# ─── Connection & project ────────────────────────────────────────── #}
+    <section class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm p-5">
+      <div class="flex items-start justify-between gap-3 mb-4">
+        <div>
+          <h2 class="text-sm font-semibold flex items-center gap-2">
+            <span class="material-symbols-outlined text-brand-500 text-[18px]">dns</span>Connection &amp; project
+          </h2>
+          <p class="text-xs text-zinc-500 mt-1 ml-6">Pre-filled for your environment. The password is used for this run only and never stored.</p>
+        </div>
+      </div>
+      {% set field = 'peer w-full h-10 px-3 bg-zinc-50 dark:bg-zinc-800/70 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all' %}
+      {% set lbl = 'block text-[11px] font-medium text-zinc-500 mb-1' %}
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3.5">
+        <label class="block sm:col-span-2">
+          <span class="{{ lbl }}">XPM URL</span>
+          <input name="base_url" type="text" value="{{ cfg.base_url }}" class="{{ field }} font-mono" placeholder="http://192.168.0.28/xpm">
+        </label>
+        <label class="block">
+          <span class="{{ lbl }}">Username</span>
+          <input name="username" type="text" value="{{ cfg.username }}" class="{{ field }}" autocomplete="username">
+        </label>
+        <label class="block">
+          <span class="{{ lbl }}">Password <span class="text-rose-500">*</span></span>
+          <span class="relative block">
+            <input name="password" id="pwInput" type="password" value="{{ cfg.password }}" required class="{{ field }} pr-10" autocomplete="current-password" placeholder="XPM password">
+            <button type="button" id="pwToggle" tabindex="-1"
+                    class="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300">
+              <span class="material-symbols-outlined text-[18px]">visibility</span>
+            </button>
+          </span>
+        </label>
+        <label class="block sm:col-span-2">
+          <span class="{{ lbl }} flex items-center justify-between gap-2">
+            <span>Project</span>
+            <button type="button" id="fetchProjects"
+                    class="text-brand-600 hover:text-brand-700 font-semibold inline-flex items-center gap-1">
+              <span class="material-symbols-outlined text-[14px]">sync</span>Fetch from XPM
+            </button>
+          </span>
+          <select name="project_name" id="projectSelect" class="{{ field }}">
+            <option value="{{ cfg.project_name }}" data-id="{{ cfg.project_id }}" selected>{{ cfg.project_name }}</option>
+          </select>
+          <input type="hidden" name="project_id" id="projectId" value="{{ cfg.project_id }}">
+          <span id="projectHint" class="block mt-1 text-[11px] text-zinc-400">Fetch to pick a project live — its ID and processes load automatically.</span>
+        </label>
+        <label class="block">
+          <span class="{{ lbl }}">Process</span>
+          <select name="process_name" id="processSelect" class="{{ field }}">
+            <option value="{{ cfg.process_name }}" selected>{{ cfg.process_name }}</option>
+          </select>
+        </label>
+        <label class="block">
+          <span class="{{ lbl }}">Delay between uploads (sec)</span>
+          <input name="delay" type="number" min="0" step="0.5" value="{{ cfg.delay }}" class="{{ field }}">
+        </label>
+      </div>
+    </section>
+
+    {# ─── Upload mode panel ───────────────────────────────────────────── #}
+    <section data-panel="upload" class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm p-5">
+      <div class="mb-4">
+        <h2 class="text-sm font-semibold flex items-center gap-2">
+          <span class="material-symbols-outlined text-brand-500 text-[18px]">upload_file</span>Migration scripts
+        </h2>
+        <p class="text-xs text-zinc-500 mt-1 ml-6">
+          Accepts <code class="font-mono text-[11px] bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">{{ allowed }}</code>,
+          uploaded in natural order (<code class="font-mono text-[11px] bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">01_</code> before
+          <code class="font-mono text-[11px] bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">10_</code>). Max {{ max_mb }} MB.
+        </p>
+      </div>
+
+      <label id="drop"
+             class="flex flex-col items-center justify-center gap-2 py-8 rounded-xl border-2 border-dashed border-zinc-300 dark:border-zinc-700 cursor-pointer hover:border-brand-500 hover:bg-brand-50/40 dark:hover:bg-brand-900/10 transition-colors">
+        <span class="material-symbols-outlined text-[38px] text-zinc-400">cloud_upload</span>
+        <div class="text-sm text-center">
+          <span class="font-semibold text-brand-600 hover:text-brand-700">Click to browse</span>
+          <span class="text-zinc-600 dark:text-zinc-400">or drop files here</span>
+        </div>
+        <div class="text-xs text-zinc-500">One or more .sql / .txt files</div>
+        <input id="fileInput" type="file" name="files" accept=".sql,.txt" multiple class="hidden">
+      </label>
+
+      <div id="fileMeta" class="hidden mt-4 flex items-center justify-between text-xs">
+        <span class="text-zinc-500"><span id="fileCount" class="font-semibold text-zinc-700 dark:text-zinc-300">0</span> file(s) · <span id="fileTotal">0 KB</span></span>
+        <button type="button" id="clearFiles" class="text-rose-500 hover:text-rose-600 font-medium inline-flex items-center gap-1">
+          <span class="material-symbols-outlined text-[15px]">delete_sweep</span>Clear all
+        </button>
+      </div>
+      <ul id="fileList" class="mt-3 space-y-1.5 max-h-64 overflow-y-auto"></ul>
+      <p id="emptyFiles" class="mt-4 text-xs text-zinc-400 text-center">No files selected yet.</p>
+    </section>
+
+    {# ─── Batch download mode panel ───────────────────────────────────── #}
+    <section data-panel="batch_download" class="hidden bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm p-5">
+      <div class="mb-4">
+        <h2 class="text-sm font-semibold flex items-center gap-2">
+          <span class="material-symbols-outlined text-brand-500 text-[18px]">download</span>Download a batch range
+        </h2>
+        <p class="text-xs text-zinc-500 mt-1 ml-6">All batches in the range are downloaded from XPM and merged into a single <code class="font-mono text-[11px] bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">.sql</code> file.</p>
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <label class="block">
+          <span class="block text-[11px] font-medium text-zinc-500 mb-1">From batch #</span>
+          <input name="batch_from" type="number" min="0" placeholder="e.g. 26759" class="w-full h-10 px-3 bg-zinc-50 dark:bg-zinc-800/70 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+        </label>
+        <label class="block">
+          <span class="block text-[11px] font-medium text-zinc-500 mb-1">To batch #</span>
+          <input name="batch_to" type="number" min="0" placeholder="e.g. 26765" class="w-full h-10 px-3 bg-zinc-50 dark:bg-zinc-800/70 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+        </label>
+      </div>
+    </section>
+
+    {# ─── Upload progress (shown during transfer) ─────────────────────── #}
+    <div id="progressWrap" class="hidden bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm p-5">
+      <div class="flex items-center justify-between text-sm mb-2">
+        <span class="font-medium flex items-center gap-2">
+          <span class="material-symbols-outlined text-brand-500 text-[18px] animate-spin">progress_activity</span>Uploading to server…
+        </span>
+        <span id="progressPct" class="tabular-nums text-zinc-500">0%</span>
+      </div>
+      <div class="h-2 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
+        <div id="progressBar" class="h-full bg-gradient-to-r from-brand-500 to-brand-400 transition-all duration-150" style="width:0%"></div>
+      </div>
+    </div>
+
+    <div class="flex justify-end gap-2 pt-1">
+      <a href="{{ url_for('xpm.dashboard') }}"
+         class="h-10 px-4 inline-flex items-center rounded-lg border border-zinc-300 dark:border-zinc-700 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">Cancel</a>
+      <button id="submitBtn" type="submit"
+              class="h-10 px-5 inline-flex items-center gap-2 rounded-lg bg-brand-600 hover:bg-brand-700 text-white font-medium shadow-sm shadow-brand-500/25 transition-all hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-60 disabled:translate-y-0">
+        <span id="submitLabel">Start upload</span>
+        <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+      </button>
+    </div>
+  </form>
+
+  {# ─── Aside: how it works ─────────────────────────────────────────── #}
+  <aside class="space-y-4 lg:sticky lg:top-24 self-start">
+    <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm p-5">
+      <h3 class="text-sm font-semibold mb-4">{{ content('xpm_upload', 'help_title', 'What happens next') }}</h3>
+      <ol class="space-y-3.5 text-sm">
+        {% for n, text in [
+          (1, 'Files are validated and a unique Batch Number is generated.'),
+          (2, 'We log in to XPM and switch to your project.'),
+          (3, 'Each script is uploaded in order, with automatic retry on network hiccups.'),
+          (4, 'The consolidated script for exactly those batches is downloaded and saved.'),
+          (5, 'Track live progress, then download — every run is kept in Processing History.')
+        ] %}
+        <li class="flex items-start gap-3">
+          <span class="shrink-0 h-6 w-6 rounded-full bg-brand-50 dark:bg-brand-900/40 text-brand-600 dark:text-brand-300 text-xs font-semibold flex items-center justify-center">{{ n }}</span>
+          <span class="text-zinc-600 dark:text-zinc-400 leading-relaxed">{{ text }}</span>
+        </li>
+        {% endfor %}
+      </ol>
+    </div>
+    <div class="bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800/50 rounded-2xl p-4 flex items-start gap-3">
+      <span class="material-symbols-outlined text-brand-500 text-[20px]">vpn_lock</span>
+      <p class="text-xs text-brand-800 dark:text-brand-200 leading-relaxed whitespace-pre-line">{{ content('xpm_upload', 'vpn_note', "XPM is reachable only on the Noida office VPN. If a run can't connect, check the VPN and retry — no partial state is committed.") }}</p>
+    </div>
+    {{ edit_button('xpm_upload') }}
+  </aside>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const form = document.getElementById('xpmForm');
+  const input = document.getElementById('fileInput');
+  const list = document.getElementById('fileList');
+  const empty = document.getElementById('emptyFiles');
+  const meta = document.getElementById('fileMeta');
+  const countEl = document.getElementById('fileCount');
+  const totalEl = document.getElementById('fileTotal');
+  const clearBtn = document.getElementById('clearFiles');
+  const modeF = document.getElementById('modeField');
+  const drop = document.getElementById('drop');
+  const submitBtn = document.getElementById('submitBtn');
+  const submitLabel = document.getElementById('submitLabel');
+  const pWrap = document.getElementById('progressWrap');
+  const pBar = document.getElementById('progressBar');
+  const pPct = document.getElementById('progressPct');
+
+  let files = [];
+  const ALLOWED = ['.sql', '.txt'];
+  const fmt = b => b < 1024 ? b + ' B' : (b / 1024).toFixed(1) + ' KB';
+  const ext = n => { const i = n.lastIndexOf('.'); return i < 0 ? '' : n.slice(i).toLowerCase(); };
+
+  function render() {
+    list.innerHTML = '';
+    const has = files.length > 0;
+    empty.classList.toggle('hidden', has);
+    meta.classList.toggle('hidden', !has);
+    meta.classList.toggle('flex', has);
+    countEl.textContent = files.length;
+    totalEl.textContent = fmt(files.reduce((s, f) => s + f.size, 0));
+    files.forEach((f, i) => {
+      const bad = !ALLOWED.includes(ext(f.name));
+      const li = document.createElement('li');
+      li.className = 'flex items-center gap-3 px-3 py-2 rounded-lg bg-zinc-50 dark:bg-zinc-800/60 border ' +
+        (bad ? 'border-rose-300 dark:border-rose-800' : 'border-zinc-200 dark:border-zinc-700');
+      li.innerHTML =
+        '<span class="shrink-0 text-[10px] font-mono text-zinc-400 w-5 text-right tabular-nums">' + (i + 1) + '</span>' +
+        '<span class="material-symbols-outlined text-[18px] ' + (bad ? 'text-rose-500' : 'text-brand-500') + '">' + (bad ? 'error' : 'description') + '</span>' +
+        '<span class="flex-1 min-w-0 truncate text-sm font-mono">' + f.name + '</span>' +
+        '<span class="text-[11px] text-zinc-400 tabular-nums">' + fmt(f.size) + '</span>';
+      const rm = document.createElement('button');
+      rm.type = 'button';
+      rm.className = 'text-zinc-400 hover:text-rose-500 transition-colors';
+      rm.innerHTML = '<span class="material-symbols-outlined text-[18px]">close</span>';
+      rm.onclick = () => { files.splice(i, 1); syncInput(); render(); };
+      li.appendChild(rm);
+      list.appendChild(li);
+    });
+  }
+  function syncInput() { const dt = new DataTransfer(); files.forEach(f => dt.items.add(f)); input.files = dt.files; }
+  function addFiles(fl) { for (const f of fl) if (!files.some(x => x.name === f.name && x.size === f.size)) files.push(f); syncInput(); render(); }
+
+  input.addEventListener('change', () => addFiles(input.files));
+  clearBtn.addEventListener('click', () => { files = []; syncInput(); render(); });
+  ['dragover', 'dragenter'].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.add('border-brand-500', 'bg-brand-50/40', 'dark:bg-brand-900/10'); }));
+  ['dragleave', 'drop'].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.remove('border-brand-500', 'bg-brand-50/40', 'dark:bg-brand-900/10'); }));
+  drop.addEventListener('drop', ev => { if (ev.dataTransfer && ev.dataTransfer.files) addFiles(ev.dataTransfer.files); });
+
+  // password visibility toggle
+  const pw = document.getElementById('pwInput'), pwt = document.getElementById('pwToggle');
+  if (pwt) pwt.addEventListener('click', () => {
+    const show = pw.type === 'password'; pw.type = show ? 'text' : 'password';
+    pwt.querySelector('span').textContent = show ? 'visibility_off' : 'visibility';
+  });
+
+  // Mode tabs
+  let mode = 'upload';
+  document.querySelectorAll('.mode-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      mode = tab.dataset.mode; modeF.value = mode;
+      document.querySelectorAll('.mode-tab').forEach(t => {
+        const on = t.dataset.mode === mode;
+        t.classList.toggle('bg-white', on); t.classList.toggle('dark:bg-zinc-900', on);
+        t.classList.toggle('shadow-sm', on); t.classList.toggle('ring-1', on);
+        t.classList.toggle('text-brand-600', on); t.classList.toggle('text-zinc-500', !on);
+      });
+      document.querySelectorAll('[data-panel]').forEach(p => p.classList.toggle('hidden', p.dataset.panel !== mode));
+      submitLabel.textContent = mode === 'upload' ? 'Start upload' : 'Start download';
+    });
+  });
+
+  // XHR submit with real transfer progress; falls back to normal submit.
+  form.addEventListener('submit', ev => {
+    if (mode === 'upload') {
+      if (files.length === 0) { ev.preventDefault(); window.toast && toast('Add at least one file', true); return; }
+      if (files.find(f => !ALLOWED.includes(ext(f.name)))) { ev.preventDefault(); window.toast && toast('Only .sql / .txt files are allowed', true); return; }
+    }
+    if (!window.FormData || !window.XMLHttpRequest) return;
+    ev.preventDefault();
+    submitBtn.disabled = true;
+    pWrap.classList.remove('hidden');
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', form.action, true);
+    xhr.upload.onprogress = e => { if (e.lengthComputable) { const p = Math.round(e.loaded / e.total * 100); pBar.style.width = p + '%'; pPct.textContent = p + '%'; } };
+    xhr.onload = () => { window.location = xhr.responseURL || '{{ url_for("xpm.dashboard") }}'; };
+    xhr.onerror = () => { submitBtn.disabled = false; pWrap.classList.add('hidden'); window.toast && toast('Upload failed — try again', true); };
+    xhr.send(new FormData(form));
+  });
+})();
+</script>
+{{ config_picker_js('xpmForm') }}
+{% endblock %}

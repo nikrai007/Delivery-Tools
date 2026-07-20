@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}{{ tool.name }} · {{ platform_name }}{% endblock %}
+{% block page_title %}{{ tool.name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-xl mx-auto mt-6">
+  <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm p-10 text-center space-y-4">
+    <div class="flex justify-center">
+      <div class="h-14 w-14 rounded-xl bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+        <span class="material-symbols-outlined text-amber-600 dark:text-amber-400 text-[30px]">rocket_launch</span>
+      </div>
+    </div>
+    <h2 class="text-lg font-semibold">{{ tool.name }} is registered</h2>
+    <p class="text-sm text-zinc-500 dark:text-zinc-400">
+      This tool is a <span class="font-mono text-xs px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800">{{ tool.launch_type }}</span>
+      tool. Its in-portal runner is coming in a later phase — the registration is saved and it already
+      appears on the dashboard.
+    </p>
+    {% if cfg.path %}
+      <p class="text-xs text-zinc-400 font-mono break-all">{{ cfg.path }}{% if cfg.entry %} · {{ cfg.entry }}{% endif %}{% if cfg.port %} · :{{ cfg.port }}{% endif %}</p>
+    {% elif cfg.cmd %}
+      <p class="text-xs text-zinc-400 font-mono break-all">{{ cfg.cmd }}</p>
+    {% endif %}
+    <a href="{{ url_for('landing.index') }}"
+       class="inline-flex items-center gap-1.5 h-9 px-4 text-sm font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800/60 transition-colors">
+      <span class="material-symbols-outlined text-[18px]">arrow_back</span> Back to tools
+    </a>
+  </div>
+</div>
+{% endblock %}

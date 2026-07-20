@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+{% set editing = tool is not none %}
+{% block title %}{{ 'Edit' if editing else 'New' }} tool · {{ platform_name }}{% endblock %}
+{% block page_title %}{{ 'Edit tool' if editing else 'New tool' }}{% endblock %}
+
+{% block content %}
+<form method="post"
+      action="{{ url_for('portal_admin.tool_edit', tool_id=tool.id) if editing else url_for('portal_admin.tool_new') }}"
+      enctype="multipart/form-data"
+      class="max-w-2xl space-y-6">
+
+  {# ── Basics ─────────────────────────────────────────────── #}
+  <section class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm p-6 space-y-5">
+    <h2 class="text-sm font-semibold">Basics</h2>
+
+    <div>
+      <label class="block text-xs font-medium text-zinc-500 mb-1">Tool name</label>
+      <input type="text" name="name" required
+             value="{{ tool.name if editing else '' }}"
+             class="w-full rounded-lg border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 text-sm focus:border-brand-500 focus:ring-brand-500"
+             placeholder="Report Generator">
+    </div>
+
+    <div>
+      <label class="block text-xs font-medium text-zinc-500 mb-1">
+        Slug {% if editing %}<span class="text-zinc-400">(fixed after creation)</span>{% else %}<span class="text-zinc-400">(optional — auto from name)</span>{% endif %}
+      </label>
+      <input type="text" name="slug"
+             value="{{ tool.slug if editing else '' }}"
+             {% if editing %}readonly{% endif %}
+             class="w-full rounded-lg border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 text-sm font-mono focus:border-brand-500 focus:ring-brand-500 {% if editing %}bg-zinc-100 dark:bg-zinc-800/60 text-zinc-500{% endif %}"
+             placeholder="report-generator">
+    </div>
+
+    <div>
+      <label class="block text-xs font-medium text-zinc-500 mb-1">Description</label>
+      <textarea name="description" rows="3"
+                class="w-full rounded-lg border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 text-sm focus:border-brand-500 focus:ring-brand-500"
+                placeholder="Short description shown on the tool card.">{{ tool.description if editing and tool.description else '' }}</textarea>
+    </div>
+
+    <div>
+      <label class="block text-xs font-medium text-zinc-500 mb-1">Tags <span class="text-zinc-400">(comma-separated)</span></label>
+      <input type="text" name="tags"
+             value="{% if editing %}{{ (tool.tags_json or '[]') | fromjson | join(', ') }}{% endif %}"
+             class="w-full rounded-lg border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 text-sm focus:border-brand-500 focus:ring-brand-500"
+             placeholder="Oracle, SQL, Reports">
+    </div>
+
+    <div>
+      <label class="block text-xs font-medium text-zinc-500 mb-1">Status</label>
+      <select name="status"
+              class="w-full rounded-lg border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 text-sm focus:border-brand-500 focus:ring-brand-500">
+        {% for s in statuses %}
+          <option value="{{ s }}" {% if editing and tool.status == s %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+      {# Display order is no longer entered by hand — drag-and-drop on the tool
+         list sets it. We preserve the existing value on edit so ordering is kept. #}
+      <input type="hidden" name="display_order" value="{{ tool.display_order if editing else '' }}">
+      <p class="text-[11px] text-zinc-400 mt-1">Position is set by dragging rows on the tools list — no number needed.</p>
+    </div>
+  </section>
+
+  {# ── Icon ───────────────────────────────────────────────── #}
+  <section class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm p-6 space-y-5">
+    <h2 class="text-sm font-semibold">Icon</h2>
+    <div class="flex gap-4 text-sm">
+      <label class="inline-flex items-center gap-2">
+        <input type="radio" name="icon_type" value="symbol" class="text-brand-600 focus:ring-brand-500"
+               {% if not editing or tool.icon_type != 'image' %}checked{% endif %} onchange="iconTypeChanged()">
+        Material icon
+      </label>
+      <label class="inline-flex items-center gap-2">
+        <input type="radio" name="icon_type" value="image" class="text-brand-600 focus:ring-brand-500"
+               {% if editing and tool.icon_type == 'image' %}checked{% endif %} onchange="iconTypeChanged()">
+        Upload image
+      </label>
+    </div>
+
+    <div id="icon-symbol-group">
+      <label class="block text-xs font-medium text-zinc-500 mb-1">Material Symbols name</label>
+      <input type="text" name="icon"
+             value="{{ tool.icon if editing and tool.icon_type != 'image' else 'apps' }}"
+             class="w-full rounded-lg border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 text-sm font-mono focus:border-brand-500 focus:ring-brand-500"
+             placeholder="database">
+      <p class="text-[11px] text-zinc-400 mt-1">Any name from Google Material Symbols (e.g. <code>database</code>, <code>lock</code>, <code>rule</code>).</p>
+    </div>
+
+    <div id="icon-image-group" class="hidden">
+      {% if editing and tool.icon_type == 'image' %}
+        <div class="flex items-center gap-3 mb-3">
+          <img src="{{ url_for('static', filename='tool-icons/' ~ tool.icon) }}" alt="" class="h-10 w-10 rounded-lg object-cover ring-1 ring-zinc-200 dark:ring-zinc-700">
+          <span class="text-[11px] text-zinc-400">Current icon — upload a new file to replace it.</span>
+        </div>
+      {% endif %}
+      <label class="block text-xs font-medium text-zinc-500 mb-1">Image file</label>
+      <input type="file" name="icon_file" accept=".png,.svg,.jpg,.jpeg,.webp,.gif"
+             class="block w-full text-sm text-zinc-500 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100">
+    </div>
+  </section>
+
+  {# ── Launch ─────────────────────────────────────────────── #}
+  <section class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm p-6 space-y-5">
+    <h2 class="text-sm font-semibold">Launch method</h2>
+    <div>
+      <label class="block text-xs font-medium text-zinc-500 mb-1">Type</label>
+      <select name="launch_type" id="launch_type" onchange="launchTypeChanged()"
+              class="w-full rounded-lg border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 text-sm focus:border-brand-500 focus:ring-brand-500">
+        {% for lt in launch_types %}
+          <option value="{{ lt }}" {% if editing and tool.launch_type == lt %}selected{% endif %}>{{ lt }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    {# internal #}
+    <div class="launch-group" data-lt="internal">
+      <label class="block text-xs font-medium text-zinc-500 mb-1">Target endpoint</label>
+      <input type="text" name="config_endpoint" list="endpoints"
+             value="{{ cfg.endpoint if cfg and cfg.get('endpoint') else '' }}"
+             class="w-full rounded-lg border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 text-sm font-mono focus:border-brand-500 focus:ring-brand-500"
+             placeholder="abr.dashboard">
+      <datalist id="endpoints">
+        {% for ep in internal_endpoints %}<option value="{{ ep }}">{% endfor %}
+      </datalist>
+      <p class="text-[11px] text-zinc-400 mt-1">An existing Flask route (blueprint endpoint). Pick from the list.</p>
+    </div>
+
+    {# external_url #}
+    <div class="launch-group hidden" data-lt="external_url">
+      <label class="block text-xs font-medium text-zinc-500 mb-1">URL</label>
+      <input type="url" name="config_url"
+             value="{{ cfg.url if cfg and cfg.get('url') else '' }}"
+             class="w-full rounded-lg border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 text-sm focus:border-brand-500 focus:ring-brand-500"
+             placeholder="https://jira.corp/">
+      <p class="text-[11px] text-zinc-400 mt-1">Opens in a new browser tab.</p>
+    </div>
+
+    {# folder_path #}
+    <div class="launch-group hidden" data-lt="folder_path">
+      <label class="block text-xs font-medium text-zinc-500 mb-1">Folder path</label>
+      <input type="text" name="config_path"
+             value="{{ cfg.path if cfg and cfg.get('path') else '' }}"
+             class="w-full rounded-lg border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 text-sm font-mono focus:border-brand-500 focus:ring-brand-500"
+             placeholder="DeliveryTools/ReportGenerator/">
+      <div class="grid grid-cols-2 gap-4 mt-3">
+        <div>
+          <label class="block text-xs font-medium text-zinc-500 mb-1">Entry file <span class="text-zinc-400">(optional)</span></label>
+          <input type="text" name="config_entry"
+                 value="{{ cfg.entry if cfg and cfg.get('entry') else '' }}"
+                 class="w-full rounded-lg border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 text-sm font-mono focus:border-brand-500 focus:ring-brand-500"
+                 placeholder="app.py">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-zinc-500 mb-1">Port <span class="text-zinc-400">(optional)</span></label>
+          <input type="number" name="config_port"
+                 value="{{ cfg.port if cfg and cfg.get('port') else '' }}"
+                 class="w-full rounded-lg border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 text-sm focus:border-brand-500 focus:ring-brand-500"
+                 placeholder="5010">
+        </div>
+      </div>
+      <p class="text-[11px] text-amber-600 dark:text-amber-400 mt-2">Registered now; the process runner ships in a later phase. The card links to a launcher page.</p>
+    </div>
+
+    {# executable #}
+    <div class="launch-group hidden" data-lt="executable">
+      <label class="block text-xs font-medium text-zinc-500 mb-1">Executable command / path</label>
+      <input type="text" name="config_cmd"
+             value="{{ cfg.cmd if cfg and cfg.get('cmd') else '' }}"
+             class="w-full rounded-lg border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 text-sm font-mono focus:border-brand-500 focus:ring-brand-500"
+             placeholder="C:/tools/report.exe">
+      <p class="text-[11px] text-amber-600 dark:text-amber-400 mt-2">Registered now; the process runner ships in a later phase. The card links to a launcher page.</p>
+    </div>
+  </section>
+
+  {# ── Access ─────────────────────────────────────────────── #}
+  <section class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm p-6 space-y-3">
+    <h2 class="text-sm font-semibold">Access</h2>
+    <label class="inline-flex items-center gap-2 text-sm">
+      <input type="checkbox" name="requires_team" value="1" class="rounded text-brand-600 focus:ring-brand-500"
+             {% if editing and tool.requires_team %}checked{% endif %}>
+      Restrict to specific teams (team-gated)
+    </label>
+    <p class="text-[11px] text-zinc-400">
+      Unchecked = visible to everyone. Checked = only teams you grant on the access screen can see it
+      {% if not editing %}(you can grant teams right after creating the tool){% endif %}.
+    </p>
+  </section>
+
+  <div class="flex items-center gap-3">
+    <button type="submit"
+            class="inline-flex items-center gap-1.5 h-10 px-5 bg-gradient-to-b from-brand-500 to-brand-700 text-white text-sm font-semibold rounded-lg shadow-sm shadow-brand-500/25 hover:-translate-y-0.5 transition-all">
+      <span class="material-symbols-outlined text-[18px]">save</span> {{ 'Save changes' if editing else 'Create tool' }}
+    </button>
+    <a href="{{ url_for('portal_admin.tools') }}"
+       class="inline-flex items-center h-10 px-5 text-sm font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800/60 transition-colors">
+      Cancel
+    </a>
+  </div>
+</form>
+
+<script>
+  function launchTypeChanged() {
+    var lt = document.getElementById('launch_type').value;
+    document.querySelectorAll('.launch-group').forEach(function (g) {
+      g.classList.toggle('hidden', g.getAttribute('data-lt') !== lt);
+    });
+  }
+  function iconTypeChanged() {
+    var isImage = document.querySelector('input[name="icon_type"]:checked').value === 'image';
+    document.getElementById('icon-image-group').classList.toggle('hidden', !isImage);
+    document.getElementById('icon-symbol-group').classList.toggle('hidden', isImage);
+  }
+  launchTypeChanged();
+  iconTypeChanged();
+</script>
+{% endblock %}

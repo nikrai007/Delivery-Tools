@@ -32,7 +32,7 @@
       <p class="text-xs text-zinc-500 mt-0.5">Replaces the current logo immediately across the entire platform.</p>
     </div>
 
-    <form method="post" action="{{ url_for('abr.admin_logo_upload') }}" enctype="multipart/form-data" class="space-y-4" id="upload-form">
+    <form method="post" action="{{ url_for('admin.logo_upload') }}" enctype="multipart/form-data" class="space-y-4" id="upload-form">
 
       {# Drop zone #}
       <label for="logo-input"
@@ -78,7 +78,7 @@
   <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm p-6">
     <h2 class="text-sm font-semibold mb-1">Reset to default</h2>
     <p class="text-xs text-zinc-500 mb-4">Removes the custom logo and restores the built-in default across the platform.</p>
-    <form method="post" action="{{ url_for('abr.admin_logo_reset') }}"
+    <form method="post" action="{{ url_for('admin.logo_reset') }}"
           onsubmit="return confirm('Reset to the default logo?')">
       <button type="submit"
               class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/30 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-300 text-sm font-medium transition-colors">

@@ -50,11 +50,29 @@
       /* Landing-only helpers layered on top of the shared style.css */
       .reveal { opacity: 0; transform: translateY(22px); transition: opacity .7s cubic-bezier(.16,1,.3,1), transform .7s cubic-bezier(.16,1,.3,1); }
       .reveal.in { opacity: 1; transform: none; }
-      .tool-card { transition: transform .3s cubic-bezier(.16,1,.3,1), box-shadow .3s ease, border-color .3s ease; }
+      .tool-card { transition: transform .35s cubic-bezier(.16,1,.3,1), box-shadow .35s ease, border-color .35s ease; }
       .tool-card:hover { transform: translateY(-6px); }
+
+      /* Premium interactive tool cards: subtle 3D tilt (JS-driven) + cursor glow.
+         GPU-accelerated (transform / opacity only). */
+      .js-tool-card { transform-style: preserve-3d; will-change: transform; }
+      .js-tool-card > * { position: relative; z-index: 1; }         /* keep content above the glow */
+      .js-tool-card::before {
+        content: ""; position: absolute; inset: 0; border-radius: inherit; z-index: 0;
+        pointer-events: none; opacity: 0; transition: opacity .35s ease;
+        background: radial-gradient(300px circle at var(--mx, 50%) var(--my, 50%), rgba(99,102,241,.16), transparent 55%);
+      }
+      .js-tool-card:hover::before { opacity: 1; }
+      .tilt-active { transition: none !important; }                 /* track the cursor 1:1 while tilting */
+
       .grid-fade { -webkit-mask-image: radial-gradient(120% 90% at 50% 0%, #000 55%, transparent 100%);
                    mask-image: radial-gradient(120% 90% at 50% 0%, #000 55%, transparent 100%); }
-      @media (prefers-reduced-motion: reduce) { .reveal { opacity: 1; transform: none; transition: none; } }
+
+      @media (prefers-reduced-motion: reduce) {
+        .reveal { opacity: 1; transform: none; transition: none; }
+        .js-tool-card { transform: none !important; }
+        .js-tool-card::before { display: none; }
+      }
     </style>
   </head>
 
@@ -85,6 +103,11 @@
           <a href="#toolbox"  class="text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors">Tools</a>
           <a href="#features" class="text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors">Platform</a>
           <a href="{{ url_for('landing.about') }}" class="text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors">About</a>
+          {% if current_user.is_authenticated and is_admin %}
+            <a href="{{ url_for('admin.console') }}" class="inline-flex items-center gap-1.5 text-brand-600 dark:text-brand-300 hover:text-brand-700 dark:hover:text-brand-200 transition-colors">
+              <span class="material-symbols-outlined text-[18px]">admin_panel_settings</span>Admin
+            </a>
+          {% endif %}
         </div>
 
         <div class="flex items-center gap-2">
@@ -95,11 +118,70 @@
             <span class="material-symbols-outlined text-[20px] hidden dark:inline">light_mode</span>
           </button>
           {% if current_user.is_authenticated %}
-            <a href="{{ url_for('abr.dashboard') }}"
-               class="btn-sheen inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white
-                      bg-gradient-to-b from-brand-500 to-brand-700 shadow-lg shadow-brand-500/25 hover:-translate-y-0.5 transition-all">
-              <span class="material-symbols-outlined text-[18px]">dashboard</span> Dashboard
-            </a>
+            {# ── Account menu (profile / edit / security / logout) — extreme right ── #}
+            <div class="relative" id="profile-wrapper">
+              <button id="profile-btn" type="button"
+                      class="flex items-center gap-1 p-1 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                      title="Account" aria-haspopup="true" aria-expanded="false">
+                {% if avatar_url %}
+                  <img src="{{ avatar_url }}" alt="" class="h-8 w-8 rounded-full object-cover shadow-sm">
+                {% else %}
+                  <span class="h-8 w-8 rounded-full bg-brand-600 text-white flex items-center justify-center text-sm font-semibold shadow-sm">
+                    {{ current_user.username[:1]|upper }}
+                  </span>
+                {% endif %}
+                <span class="material-symbols-outlined text-[18px] text-zinc-500 hidden sm:inline">expand_more</span>
+              </button>
+              <div id="profile-panel"
+                   class="hidden absolute right-0 top-full mt-1 w-64 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xl z-50 overflow-hidden">
+                <div class="flex items-center gap-3 px-4 py-3 border-b border-zinc-100 dark:border-zinc-800">
+                  {% if avatar_url %}
+                    <img src="{{ avatar_url }}" alt="" class="h-10 w-10 rounded-full object-cover shrink-0">
+                  {% else %}
+                    <span class="h-10 w-10 rounded-full bg-brand-600 text-white flex items-center justify-center text-base font-semibold shrink-0">
+                      {{ current_user.username[:1]|upper }}
+                    </span>
+                  {% endif %}
+                  <div class="min-w-0">
+                    <p class="text-sm font-semibold truncate text-zinc-900 dark:text-zinc-100">{{ current_user.full_name or current_user.username }}</p>
+                    <p class="text-[11px] text-zinc-500 truncate">{{ current_user.email or current_user.username }}</p>
+                    <span class="inline-block mt-1 text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500">{{ current_user.role }}</span>
+                  </div>
+                </div>
+                <div class="py-1">
+                  <a href="{{ url_for('auth.profile') }}"
+                     class="flex items-center gap-2.5 px-4 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+                    <span class="material-symbols-outlined text-[18px] text-zinc-400">account_circle</span> View profile
+                  </a>
+                  <a href="{{ url_for('auth.profile_edit') }}"
+                     class="flex items-center gap-2.5 px-4 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+                    <span class="material-symbols-outlined text-[18px] text-zinc-400">edit</span> Edit profile
+                  </a>
+                  <a href="{{ url_for('auth.security_settings') }}"
+                     class="flex items-center gap-2.5 px-4 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+                    <span class="material-symbols-outlined text-[18px] text-zinc-400">security</span> Security &amp; 2FA
+                  </a>
+                  {% if is_admin %}
+                    <a href="{{ url_for('admin.console') }}"
+                       class="flex items-center gap-2.5 px-4 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+                      <span class="material-symbols-outlined text-[18px] text-zinc-400">admin_panel_settings</span> Admin console
+                    </a>
+                  {% endif %}
+                  {% if is_team_leader and not is_admin %}
+                    <a href="{{ url_for('teams.my_team') }}"
+                       class="flex items-center gap-2.5 px-4 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+                      <span class="material-symbols-outlined text-[18px] text-zinc-400">group</span> Team dashboard
+                    </a>
+                  {% endif %}
+                </div>
+                <div class="py-1 border-t border-zinc-100 dark:border-zinc-800">
+                  <a href="{{ url_for('auth.logout') }}"
+                     class="flex items-center gap-2.5 px-4 py-2 text-sm text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors">
+                    <span class="material-symbols-outlined text-[18px]">logout</span> Sign out
+                  </a>
+                </div>
+              </div>
+            </div>
           {% else %}
             <a href="{{ url_for('auth.login') }}"
                class="btn-sheen inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white
@@ -168,16 +250,39 @@
           </span>
         </div>
 
+        {# ── Search + tag filter (client-side; no reload) ── #}
+        {% set all_tags = [] %}
+        {% for tool in tools %}{% for tg in tool.tags %}{% if tg not in all_tags %}{% set _ = all_tags.append(tg) %}{% endif %}{% endfor %}{% endfor %}
+        <div class="reveal mb-8 flex flex-col sm:flex-row sm:items-center gap-3">
+          <div class="relative flex-1">
+            <span class="material-symbols-outlined text-[20px] absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400">search</span>
+            <input id="tool-search" type="search" placeholder="Search tools by name, description or tag…"
+                   class="w-full h-11 pl-10 pr-3 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white/70 dark:bg-zinc-900/60 backdrop-blur text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30">
+          </div>
+          {% if all_tags %}
+            <select id="tool-tag" class="h-11 px-3 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white/70 dark:bg-zinc-900/60 backdrop-blur text-sm">
+              <option value="">All tags</option>
+              {% for tg in all_tags|sort %}<option value="{{ tg|lower }}">{{ tg }}</option>{% endfor %}
+            </select>
+          {% endif %}
+        </div>
+        <p id="tool-empty" class="hidden text-sm text-zinc-500 dark:text-zinc-400 mb-6">No tools match your search.</p>
+
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {% for tool in tools %}
-            {% if tool.status == 'live' %}
-              <a href="{{ url_for(tool.endpoint) }}"
-                 class="tool-card glass-card shimmer-sweep reveal group relative block rounded-2xl p-7
-                        hover:border-brand-400/50 hover:shadow-xl hover:shadow-brand-500/10">
+            {% if tool.clickable %}
+              <a href="{{ tool.href }}"{% if tool.target %} target="{{ tool.target }}" rel="noopener"{% endif %}
+                 class="js-tool-card tool-card glass-card shimmer-sweep reveal group relative block rounded-2xl p-7
+                        hover:border-brand-400/50 hover:shadow-xl hover:shadow-brand-500/10"
+                 data-name="{{ tool.name|lower }} {{ tool.desc|lower }}" data-tags="{{ tool.tags|join(',')|lower }}">
                 <div class="flex items-start justify-between mb-5">
                   <div class="h-12 w-12 rounded-xl bg-brand-500/15 dark:bg-brand-500/20 ring-1 ring-brand-500/20
-                              flex items-center justify-center text-brand-600 dark:text-brand-300">
-                    <span class="material-symbols-outlined text-[24px]">{{ tool.icon }}</span>
+                              flex items-center justify-center text-brand-600 dark:text-brand-300 overflow-hidden">
+                    {% if tool.icon_type == 'image' %}
+                      <img src="{{ url_for('static', filename='tool-icons/' ~ tool.icon) }}" alt="" class="h-12 w-12 object-cover">
+                    {% else %}
+                      <span class="material-symbols-outlined text-[24px]">{{ tool.icon }}</span>
+                    {% endif %}
                   </div>
                   <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full
                                bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-mono text-[11px] font-medium tracking-wide">
@@ -186,6 +291,7 @@
                 </div>
                 <h3 class="text-lg font-semibold tracking-tight mb-2 flex items-center gap-1.5">
                   {{ tool.name }}
+                  {% if tool.target %}<span class="material-symbols-outlined text-[15px] text-zinc-400">open_in_new</span>{% endif %}
                 </h3>
                 <p class="text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed mb-5">{{ tool.desc }}</p>
                 <div class="flex flex-wrap gap-1.5 mb-6">
@@ -199,11 +305,16 @@
                 </span>
               </a>
             {% else %}
-              <div class="tool-card glass-card reveal relative rounded-2xl p-7 opacity-70 hover:opacity-100">
+              <div class="js-tool-card tool-card glass-card reveal relative rounded-2xl p-7 opacity-70 hover:opacity-100"
+                   data-name="{{ tool.name|lower }} {{ tool.desc|lower }}" data-tags="{{ tool.tags|join(',')|lower }}">
                 <div class="flex items-start justify-between mb-5">
                   <div class="h-12 w-12 rounded-xl bg-zinc-200/70 dark:bg-zinc-800/70 ring-1 ring-zinc-300/40 dark:ring-white/5
-                              flex items-center justify-center text-zinc-500 dark:text-zinc-400">
-                    <span class="material-symbols-outlined text-[24px]">{{ tool.icon }}</span>
+                              flex items-center justify-center text-zinc-500 dark:text-zinc-400 overflow-hidden">
+                    {% if tool.icon_type == 'image' %}
+                      <img src="{{ url_for('static', filename='tool-icons/' ~ tool.icon) }}" alt="" class="h-12 w-12 object-cover grayscale">
+                    {% else %}
+                      <span class="material-symbols-outlined text-[24px]">{{ tool.icon }}</span>
+                    {% endif %}
                   </div>
                   <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full
                                bg-zinc-200/70 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 font-mono text-[11px] tracking-wide">
@@ -314,8 +425,17 @@
         <div>
           <h5 class="text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-4">Status</h5>
           <ul class="space-y-3 text-sm">
-            <li class="inline-flex items-center gap-2 text-zinc-600 dark:text-zinc-400">
-              <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>All systems operational
+            <li>
+              {% if current_user.is_authenticated and is_admin %}
+                <a href="{{ url_for('admin.status') }}" class="inline-flex items-center gap-2 text-zinc-600 dark:text-zinc-400 hover:text-brand-600 dark:hover:text-brand-300 transition-colors">
+                  <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>System status
+                  <span class="material-symbols-outlined text-[14px]">open_in_new</span>
+                </a>
+              {% else %}
+                <span class="inline-flex items-center gap-2 text-zinc-600 dark:text-zinc-400">
+                  <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>All systems operational
+                </span>
+              {% endif %}
             </li>
           </ul>
         </div>
@@ -330,17 +450,104 @@
 
     <script src="{{ url_for('static', filename='app.js') }}"></script>
     <script>
-      // Scroll-reveal: fade sections/cards up as they enter the viewport.
+      var REDUCED = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+      // Account menu toggle (parity with the in-tool topbar profile menu).
+      (function () {
+        var btn = document.getElementById('profile-btn');
+        var panel = document.getElementById('profile-panel');
+        if (!btn || !panel) return;
+        btn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          var open = !panel.classList.contains('hidden');
+          panel.classList.toggle('hidden', open);
+          btn.setAttribute('aria-expanded', String(!open));
+        });
+        document.addEventListener('click', function () {
+          panel.classList.add('hidden');
+          btn.setAttribute('aria-expanded', 'false');
+        });
+        panel.addEventListener('click', function (e) { e.stopPropagation(); });
+        document.addEventListener('keydown', function (e) {
+          if (e.key === 'Escape') { panel.classList.add('hidden'); btn.setAttribute('aria-expanded', 'false'); }
+        });
+      })();
+
+      // Scroll-reveal: fade sections/cards up as they enter the viewport, with a
+      // gentle stagger for grids of cards (professional timing/easing).
       (function () {
         var els = document.querySelectorAll(".reveal");
-        if (!("IntersectionObserver" in window) || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        if (!("IntersectionObserver" in window) || REDUCED) {
           els.forEach(function (el) { el.classList.add("in"); });
           return;
         }
         var io = new IntersectionObserver(function (entries) {
-          entries.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } });
+          entries.forEach(function (e) {
+            if (!e.isIntersecting) return;
+            var sibs = Array.prototype.slice.call(
+              e.target.parentElement ? e.target.parentElement.querySelectorAll(":scope > .reveal") : []);
+            var idx = Math.max(0, sibs.indexOf(e.target));
+            if (!e.target.style.transitionDelay) e.target.style.transitionDelay = Math.min(idx, 6) * 0.06 + "s";
+            e.target.classList.add("in");
+            io.unobserve(e.target);
+          });
         }, { threshold: 0.12 });
         els.forEach(function (el) { io.observe(el); });
+      })();
+
+      // Subtle 3D tilt + cursor glow on tool cards. Fine-pointer devices only
+      // (skipped on touch) and disabled for reduced-motion. Transform/opacity
+      // only, throttled with requestAnimationFrame → GPU-friendly, no jank.
+      (function () {
+        if (REDUCED || !window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
+        document.querySelectorAll(".js-tool-card").forEach(function (card) {
+          var raf = null, rx = 0, ry = 0, mx = 50, my = 50, lifted = false;
+          function apply() {
+            raf = null;
+            card.style.setProperty("--mx", mx + "%");
+            card.style.setProperty("--my", my + "%");
+            card.style.transform =
+              "perspective(900px) rotateX(" + rx.toFixed(2) + "deg) rotateY(" + ry.toFixed(2) + "deg) translateY(-6px)";
+          }
+          card.addEventListener("pointermove", function (e) {
+            var r = card.getBoundingClientRect();
+            var px = (e.clientX - r.left) / r.width, py = (e.clientY - r.top) / r.height;
+            mx = px * 100; my = py * 100;
+            ry = (px - 0.5) * 9;      // ≤ ±4.5° — subtle, not gimmicky
+            rx = (0.5 - py) * 9;
+            if (!lifted) { card.classList.add("tilt-active"); lifted = true; }
+            if (!raf) raf = requestAnimationFrame(apply);
+          });
+          card.addEventListener("pointerleave", function () {
+            lifted = false;
+            card.classList.remove("tilt-active");   // restore smooth CSS easing for the settle
+            card.style.transform = "";
+          });
+        });
+      })();
+
+      // Dashboard search + tag filter (client-side).
+      (function () {
+        var q = document.getElementById("tool-search");
+        var tag = document.getElementById("tool-tag");
+        var empty = document.getElementById("tool-empty");
+        var cards = document.querySelectorAll(".js-tool-card");
+        if (!q) return;
+        function apply() {
+          var term = (q.value || "").trim().toLowerCase();
+          var wantTag = tag ? tag.value : "";
+          var shown = 0;
+          cards.forEach(function (c) {
+            var ok = true;
+            if (term) ok = (c.dataset.name || "").indexOf(term) !== -1 || (c.dataset.tags || "").indexOf(term) !== -1;
+            if (ok && wantTag) ok = ("," + (c.dataset.tags || "") + ",").indexOf("," + wantTag + ",") !== -1;
+            c.style.display = ok ? "" : "none";
+            if (ok) shown++;
+          });
+          if (empty) empty.classList.toggle("hidden", shown !== 0);
+        }
+        q.addEventListener("input", apply);
+        if (tag) tag.addEventListener("change", apply);
       })();
     </script>
   </body>

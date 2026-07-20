@@ -37,6 +37,9 @@ class User(UserMixin):
         self.approval_status = _row_get(row, "approval_status", "approved")
         self.full_name = _row_get(row, "full_name")
         self.employee_code = _row_get(row, "employee_code")
+        self.avatar_filename = _row_get(row, "avatar_filename")
+        self.must_change_password = bool(_row_get(row, "must_change_password", 0))
+        self.totp_enabled = bool(_row_get(row, "totp_enabled", 0))
 
     @property
     def is_active(self):

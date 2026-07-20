@@ -45,12 +45,10 @@
             <td class="px-5 py-3 text-xs text-zinc-500 tabular-nums whitespace-nowrap">{{ r.requested_at[:16].replace('T', ' ') }}</td>
             <td class="px-5 py-3 text-right">
               <div class="inline-flex items-center gap-2">
-                <form method="post" action="{{ url_for('teams.my_team_approve', req_id=r.id) }}" class="inline">
-                  <button type="submit"
-                          class="inline-flex items-center gap-1 h-7 px-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium rounded-md transition-colors">
-                    <span class="material-symbols-outlined text-[14px]">check</span> Approve
-                  </button>
-                </form>
+                <a href="{{ url_for('teams.my_team_approve', req_id=r.id) }}"
+                   class="inline-flex items-center gap-1 h-7 px-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium rounded-md transition-colors">
+                  <span class="material-symbols-outlined text-[14px]">check</span> Approve
+                </a>
                 <form method="post" action="{{ url_for('teams.my_team_reject', req_id=r.id) }}" class="inline">
                   <button type="submit"
                           class="inline-flex items-center gap-1 h-7 px-3 bg-rose-600 hover:bg-rose-700 text-white text-xs font-medium rounded-md transition-colors">

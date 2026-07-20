@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+{% from "xpm_macros.html" import status_badge, batch_pill, toolbar %}
+{% block title %}Processing history · XPM Automator{% endblock %}
+{% block page_title %}XPM Automator{% endblock %}
+
+{% macro sort_link(col, label) %}
+  {% set is_active = sort == col %}
+  {% set next_dir = 'asc' if (is_active and direction == 'desc') else 'desc' %}
+  {% set args = dict(request.args) %}
+  {% set _ = args.update({'sort': col, 'dir': next_dir}) %}
+  <a href="{{ url_for('xpm.history', **args) }}" class="inline-flex items-center gap-1 hover:text-brand-600 transition-colors {% if is_active %}text-brand-600{% endif %}">
+    {{ label }}
+    {% if is_active %}<span class="material-symbols-outlined text-[14px]">{{ 'arrow_upward' if direction == 'asc' else 'arrow_downward' }}</span>{% endif %}
+  </a>
+{% endmacro %}
+
+{% block content %}
+{{ toolbar('Processing history', total ~ ' run(s)' ~ (' · all users' if show_all else ''), 'history') }}
+
+{# ─── Actions row ──────────────────────────────────────────────────────── #}
+<div class="flex flex-wrap items-center justify-end gap-2">
+  <a href="{{ url_for('xpm.history', **request.args) }}"
+     class="h-9 px-3 inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 text-xs font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+    <span class="material-symbols-outlined text-[16px]">refresh</span>Refresh
+  </a>
+  <a href="{{ url_for('xpm.export_csv', **request.args) }}"
+     class="h-9 px-3 inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 text-xs font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+    <span class="material-symbols-outlined text-[16px]">download</span>Export CSV
+  </a>
+  <a href="{{ url_for('xpm.new_run') }}"
+     class="h-9 px-3 inline-flex items-center gap-1.5 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-xs font-medium shadow-sm transition-colors">
+    <span class="material-symbols-outlined text-[16px]">add</span>New upload
+  </a>
+</div>
+
+{# ─── Filters ──────────────────────────────────────────────────────────── #}
+<form method="get" action="{{ url_for('xpm.history') }}"
+      class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm p-4">
+  <input type="hidden" name="sort" value="{{ sort }}">
+  <input type="hidden" name="dir" value="{{ direction }}">
+  {% set fld = 'w-full h-9 px-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500' %}
+  {% set cap = 'block text-[10px] uppercase tracking-wider text-zinc-500 font-semibold mb-1' %}
+  <div class="grid grid-cols-2 lg:grid-cols-6 gap-3 items-end">
+    <label class="block col-span-2">
+      <span class="{{ cap }}">Search</span>
+      <input type="text" name="q" value="{{ filters.q }}" placeholder="batch, project, output…" class="{{ fld }}">
+    </label>
+    <label class="block">
+      <span class="{{ cap }}">Batch Number</span>
+      <input type="text" name="batch" value="{{ filters.batch }}" class="{{ fld }}">
+    </label>
+    <label class="block">
+      <span class="{{ cap }}">Status</span>
+      <select name="status" class="{{ fld }}">
+        <option value="">any</option>
+        {% for s in status_choices %}<option value="{{ s }}" {% if filters.status == s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+      </select>
+    </label>
+    {% if show_all %}
+    <label class="block">
+      <span class="{{ cap }}">User</span>
+      <select name="user" class="{{ fld }}">
+        <option value="">any</option>
+        {% for u in users %}<option value="{{ u }}" {% if filters.username == u %}selected{% endif %}>{{ u }}</option>{% endfor %}
+      </select>
+    </label>
+    {% endif %}
+    <label class="block">
+      <span class="{{ cap }}">From</span>
+      <input type="date" name="date_from" value="{{ filters.date_from }}" class="{{ fld }}">
+    </label>
+    <label class="block">
+      <span class="{{ cap }}">To</span>
+      <input type="date" name="date_to" value="{{ filters.date_to }}" class="{{ fld }}">
+    </label>
+  </div>
+  <div class="flex items-center justify-between mt-3 gap-2">
+    {% if is_admin %}
+      <label class="inline-flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400">
+        <input type="checkbox" name="all" value="1" {% if show_all %}checked{% endif %}
+               class="h-4 w-4 rounded border-zinc-300 text-brand-600 focus:ring-brand-500">Show all users
+      </label>
+    {% else %}<span></span>{% endif %}
+    <div class="flex gap-2">
+      <a href="{{ url_for('xpm.history') }}" class="h-9 px-3 inline-flex items-center rounded-lg border border-zinc-300 dark:border-zinc-700 text-xs">Reset</a>
+      <button type="submit" class="h-9 px-3 inline-flex items-center gap-1 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-xs font-medium shadow-sm">
+        <span class="material-symbols-outlined text-[16px]">filter_alt</span>Filter
+      </button>
+    </div>
+  </div>
+</form>
+
+{# ─── Table ────────────────────────────────────────────────────────────── #}
+<div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm overflow-hidden">
+  {% if runs %}
+    <div class="overflow-x-auto">
+      <table class="w-full text-left text-sm">
+        <thead class="bg-zinc-50 dark:bg-zinc-800/50 text-zinc-500 border-b border-zinc-200 dark:border-zinc-800">
+          <tr>
+            <th class="px-4 py-3 font-medium uppercase tracking-wider text-[10px]">{{ sort_link('created_at', 'When') }}</th>
+            {% if show_all %}<th class="px-4 py-3 font-medium uppercase tracking-wider text-[10px]">{{ sort_link('user', 'User') }}</th>{% endif %}
+            <th class="px-4 py-3 font-medium uppercase tracking-wider text-[10px]">{{ sort_link('batch', 'Batch Number') }}</th>
+            <th class="px-4 py-3 font-medium uppercase tracking-wider text-[10px] text-right">{{ sort_link('files', 'Files') }}</th>
+            <th class="px-4 py-3 font-medium uppercase tracking-wider text-[10px] text-right">{{ sort_link('duration', 'Duration') }}</th>
+            <th class="px-4 py-3 font-medium uppercase tracking-wider text-[10px]">Download</th>
+            <th class="px-4 py-3 font-medium uppercase tracking-wider text-[10px]">{{ sort_link('status', 'Status') }}</th>
+            <th class="px-4 py-3 font-medium uppercase tracking-wider text-[10px] text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-zinc-100 dark:divide-zinc-800">
+          {% for r in runs %}
+            <tr class="hover:bg-zinc-50/60 dark:hover:bg-zinc-800/40 transition-colors">
+              <td class="px-4 py-3 whitespace-nowrap text-zinc-500 tabular-nums">{{ r.created_at[:19].replace('T',' ') }}</td>
+              {% if show_all %}
+                <td class="px-4 py-3 whitespace-nowrap">
+                  <div class="font-medium">{{ r.username or '—' }}</div>
+                  {% if r.user_email %}<div class="text-[11px] text-zinc-400">{{ r.user_email }}</div>{% endif %}
+                </td>
+              {% endif %}
+              <td class="px-4 py-3 whitespace-nowrap">
+                {{ batch_pill(r.final_batch_number or r.batch_number) }}
+                {% if r.final_batch_number and r.final_batch_number != r.batch_number %}
+                  <div class="text-[10px] text-zinc-400 mt-0.5">gen: {{ r.batch_number }}</div>
+                {% endif %}
+              </td>
+              <td class="px-4 py-3 text-right tabular-nums whitespace-nowrap">
+                {% if r.mode == 'batch_download' %}
+                  <span class="text-xs text-violet-500">#{{ r.batch_from }}–{{ r.batch_to }}</span>
+                {% else %}
+                  {{ r.files_uploaded }}/{{ r.file_count }}{% if r.files_failed %}<span class="text-rose-500"> · {{ r.files_failed }}✗</span>{% endif %}
+                {% endif %}
+              </td>
+              <td class="px-4 py-3 text-right tabular-nums whitespace-nowrap text-zinc-500">
+                {% if r.duration_ms is not none %}{{ "%.1f"|format(r.duration_ms / 1000) }}s{% else %}—{% endif %}
+              </td>
+              <td class="px-4 py-3 whitespace-nowrap text-xs">
+                {% if r.download_count and r.download_count > 0 %}
+                  <span class="inline-flex items-center gap-1 text-emerald-600"><span class="material-symbols-outlined text-[14px]">download_done</span>{{ r.download_count }}×</span>
+                {% elif r.output_file %}
+                  <span class="text-zinc-400">available</span>
+                {% else %}
+                  <span class="text-zinc-300 dark:text-zinc-600">—</span>
+                {% endif %}
+              </td>
+              <td class="px-4 py-3 whitespace-nowrap">{{ status_badge(r.status) }}</td>
+              <td class="px-4 py-3 text-right whitespace-nowrap">
+                <div class="inline-flex items-center gap-3 text-xs font-semibold">
+                  {% if r.status == 'completed' and r.output_file %}
+                    <a href="{{ url_for('xpm.download', run_id=r.id) }}" title="Download" class="inline-flex items-center text-brand-600 hover:text-brand-700">
+                      <span class="material-symbols-outlined text-[16px]">download</span>
+                    </a>
+                  {% endif %}
+                  <a href="{{ url_for('xpm.detail', run_id=r.id) }}" class="text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200">details</a>
+                  {% if r.status in ('uploaded','processing') %}
+                    <a href="{{ url_for('xpm.run_status', run_id=r.id) }}" class="text-brand-600 hover:text-brand-700">live →</a>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if pages > 1 %}
+      {% set pargs = dict(request.args) %}
+      <div class="flex items-center justify-between px-4 py-3 border-t border-zinc-100 dark:border-zinc-800 text-sm">
+        <span class="text-zinc-500">Page {{ page }} of {{ pages }}</span>
+        <div class="flex gap-1">
+          {% set _ = pargs.update({'page': page - 1}) %}
+          <a href="{{ url_for('xpm.history', **pargs) }}"
+             class="h-8 px-3 inline-flex items-center rounded-lg border border-zinc-300 dark:border-zinc-700 {% if page <= 1 %}pointer-events-none opacity-40{% endif %}">Prev</a>
+          {% set _ = pargs.update({'page': page + 1}) %}
+          <a href="{{ url_for('xpm.history', **pargs) }}"
+             class="h-8 px-3 inline-flex items-center rounded-lg border border-zinc-300 dark:border-zinc-700 {% if page >= pages %}pointer-events-none opacity-40{% endif %}">Next</a>
+        </div>
+      </div>
+    {% endif %}
+  {% else %}
+    <div class="p-12 text-center">
+      <div class="mx-auto h-12 w-12 rounded-2xl bg-zinc-100 dark:bg-zinc-800 text-zinc-400 flex items-center justify-center">
+        <span class="material-symbols-outlined text-[26px]">inbox</span>
+      </div>
+      <p class="mt-3 text-sm text-zinc-500">No runs match the current filters.</p>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}
